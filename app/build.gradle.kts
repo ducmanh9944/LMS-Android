@@ -18,11 +18,18 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        val webClientId = Properties().run {
+        val properties = Properties().apply {
             rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
-            getProperty("google.web.client.id") ?: ""
         }
+
+        val webClientId = properties.getProperty("google.web.client.id") ?: ""
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
+
+        val cloudName = properties.getProperty("CLOUDINARY_CLOUD_NAME") ?: ""
+        val uploadPreset = properties.getProperty("CLOUDINARY_UPLOAD_PRESET") ?: "ml_default"
+        
+        buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"$cloudName\"")
+        buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"$uploadPreset\"")
     }
 
     packaging {
@@ -91,6 +98,9 @@ dependencies {
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
+
+    // Cloudinary
+    implementation("com.cloudinary:cloudinary-android:2.3.1")
     
     // Modern Google Sign In (Credential Manager)
     implementation("androidx.credentials:credentials:1.2.2")
@@ -99,6 +109,9 @@ dependencies {
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // Reorderable LazyColumn
+    implementation("org.burnoutcrew.composereorderable:reorderable:0.9.6")
 
     // Testing
     testImplementation(libs.junit)
