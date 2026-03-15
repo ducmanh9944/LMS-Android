@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.MonetizationOn
 import androidx.compose.material3.*
@@ -32,25 +33,25 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.lms.data.model.Course
 import com.example.lms.data.model.CourseLevel
-import com.example.lms.ui.component.TopBar
-import com.example.lms.util.CourseEvent
-import com.example.lms.viewmodel.CourseViewModel
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import com.example.lms.ui.component.FormFieldWithValidation
 import com.example.lms.ui.component.SectionCard
+import com.example.lms.ui.component.TopBar
+import com.example.lms.util.CourseEvent
+import com.example.lms.viewmodel.AuthViewModel
+import com.example.lms.viewmodel.CourseViewModel
 
 @Composable
 fun CourseFormScreen(
     instructorId: String,
-    instructorName: String,
-    viewModel: CourseViewModel = viewModel(),
+    authViewModel: AuthViewModel,
+    viewModel: CourseViewModel,
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val isEditMode = uiState.currentCourse != null
 
@@ -116,20 +117,14 @@ fun CourseFormScreen(
                     FormFieldWithValidation(
                         label = "Tên khóa học",
                         value = title,
-                        onValueChange = { 
-                            title = it 
-                            viewModel.onTitleChange()
-                        },
+                        onValueChange = { title = it; viewModel.onTitleChange() },
                         placeholder = "Ví dụ: Lập trình Kotlin chuyên sâu",
                         error = uiState.titleError
                     )
                     FormFieldWithValidation(
                         label = "Mô tả",
                         value = description,
-                        onValueChange = { 
-                            description = it 
-                            viewModel.onDescriptionChange()
-                        },
+                        onValueChange = { description = it; viewModel.onDescriptionChange() },
                         placeholder = "Mô tả ngắn gọn về khóa học...",
                         minLines = 3,
                         error = uiState.descriptionError
@@ -157,10 +152,7 @@ fun CourseFormScreen(
                         FormFieldWithValidation(
                             label = "Thời lượng",
                             value = duration,
-                            onValueChange = { 
-                                duration = it 
-                                viewModel.onDurationChange()
-                            },
+                            onValueChange = { duration = it; viewModel.onDurationChange() },
                             placeholder = "Ví dụ: 15h 45m",
                             modifier = Modifier.weight(1f),
                             error = uiState.durationError
@@ -182,16 +174,14 @@ fun CourseFormScreen(
                             checked = isFree, 
                             onCheckedChange = { 
                                 isFree = it 
-                                if(it) {
-                                    price = "0"
-                                }
+                                if(it) price = "0"
                                 viewModel.onPriceChange()
                             },
                             thumbContent = {
                                 Box(modifier = Modifier.size(SwitchDefaults.IconSize))
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White, 
+                                checkedThumbColor = Color.White,
                                 checkedTrackColor = primaryIndigo,
                                 uncheckedThumbColor = Color.White,
                                 uncheckedTrackColor = Color(0xFFE2E8F0),
@@ -229,7 +219,7 @@ fun CourseFormScreen(
                                 Box(modifier = Modifier.size(SwitchDefaults.IconSize))
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White, 
+                                checkedThumbColor = Color.White,
                                 checkedTrackColor = primaryIndigo,
                                 uncheckedThumbColor = Color.White,
                                 uncheckedTrackColor = Color(0xFFE2E8F0),
@@ -244,6 +234,7 @@ fun CourseFormScreen(
 
             Button(
                 onClick = {
+                    val instructorName = authUiState.currentUser?.fullName ?: "Instructor"
                     val course = (uiState.currentCourse ?: Course()).copy(
                         title = title, description = description, 
                         price = if(isFree) 0.0 else (price.toDoubleOrNull() ?: 0.0),

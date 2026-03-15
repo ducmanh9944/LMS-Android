@@ -1,5 +1,7 @@
 package com.example.lms.util
 
+import com.example.lms.data.model.User
+
 data class AuthUiState(
     val email: String = "",
     val password: String = "",
@@ -8,5 +10,6 @@ data class AuthUiState(
     val passwordVisible: Boolean = false,
     val confirmPasswordVisible: Boolean = false,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val currentUser: User? = null
 )

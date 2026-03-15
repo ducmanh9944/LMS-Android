@@ -2,7 +2,9 @@ package com.example.lms.ui.screen.instructor.curriculum
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -20,15 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lms.data.model.CurriculumItem
 import com.example.lms.ui.component.TopBar
 import com.example.lms.util.CurriculumEvent
 import com.example.lms.util.CurriculumUiState
+import com.example.lms.viewmodel.CourseViewModel
 import com.example.lms.viewmodel.CurriculumViewModel
 import kotlinx.coroutines.flow.collectLatest
 import org.burnoutcrew.reorderable.*
@@ -54,16 +55,20 @@ private fun CurriculumItem.toUiProps(): ItemUiProps = when (this) {
 
 @Composable
 fun CurriculumScreen(
-    courseTitle: String,
-    courseId: String,
-    viewModel: CurriculumViewModel = viewModel(),
+    courseViewModel: CourseViewModel,
+    viewModel: CurriculumViewModel,
     onBackClick: () -> Unit,
-    onAddLesson: () -> Unit,
-    onAddQuiz: () -> Unit,
-    onEditLesson: (CurriculumItem.LessonItem) -> Unit,
-    onEditQuiz: (CurriculumItem.QuizItem) -> Unit
+    onAddLesson: (String) -> Unit,
+    onAddQuiz: (String) -> Unit,
+    onEditLesson: (CurriculumItem.LessonItem, String) -> Unit,
+    onEditQuiz: (CurriculumItem.QuizItem, String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val courseUiState by courseViewModel.uiState.collectAsStateWithLifecycle()
+    val currentCourse = courseUiState.currentCourse
+    val courseId = currentCourse?.id ?: ""
+    val courseTitle = currentCourse?.title ?: "Nội dung khóa học"
+
     val snackbarHostState = remember { SnackbarHostState() }
     var showAddMenu by remember { mutableStateOf(false) }
     var itemToDelete by remember { mutableStateOf<CurriculumItem?>(null) }
@@ -71,7 +76,9 @@ fun CurriculumScreen(
     val primaryIndigo = Color(0xFF4B5CC4)
 
     LaunchedEffect(courseId) {
-        viewModel.setCourseId(courseId)
+        if (courseId.isNotEmpty()) {
+            viewModel.setCourseId(courseId)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -93,11 +100,11 @@ fun CurriculumScreen(
                 onToggle = { showAddMenu = !showAddMenu },
                 onAddLesson = {
                     showAddMenu = false
-                    onAddLesson()
+                    onAddLesson(courseId)
                 },
                 onAddQuiz = {
                     showAddMenu = false
-                    onAddQuiz()
+                    onAddQuiz(courseId)
                 }
             )
         },
@@ -131,8 +138,8 @@ fun CurriculumScreen(
                             onReorder = { viewModel.updateOrder(it) },
                             onEdit = { item ->
                                 when (item) {
-                                    is CurriculumItem.LessonItem -> onEditLesson(item)
-                                    is CurriculumItem.QuizItem -> onEditQuiz(item)
+                                    is CurriculumItem.LessonItem -> onEditLesson(item, courseId)
+                                    is CurriculumItem.QuizItem -> onEditQuiz(item, courseId)
                                 }
                             },
                             onDeleteRequest = { itemToDelete = it }
@@ -174,22 +181,34 @@ private fun CurriculumList(
     onEdit: (CurriculumItem) -> Unit,
     onDeleteRequest: (CurriculumItem) -> Unit
 ) {
-    var localItems by remember(items) { mutableStateOf(items) }
+    var localItems by remember { mutableStateOf(items) }
+
     val reorderableState = rememberReorderableLazyListState(
         onMove = { from, to ->
-            localItems = localItems.toMutableList().apply {
-                add(to.index, removeAt(from.index))
+            val fromIndex = (from.index - 1).coerceIn(localItems.indices)
+            val toIndex = (to.index - 1).coerceIn(localItems.indices)
+
+            if (fromIndex != toIndex) {
+                localItems = localItems.toMutableList().apply {
+                    add(toIndex, removeAt(fromIndex))
+                }
             }
         },
         onDragEnd = { _, _ -> onReorder(localItems) }
     )
 
+    val isDraggingAny by remember { derivedStateOf { reorderableState.draggingItemKey != null } }
+    LaunchedEffect(items) {
+        if (!isDraggingAny) {
+            localItems = items
+        }
+    }
+
     LazyColumn(
         state = reorderableState.listState,
         modifier = Modifier
             .fillMaxSize()
-            .reorderable(reorderableState)
-            .detectReorderAfterLongPress(reorderableState),
+            .reorderable(reorderableState),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -208,6 +227,7 @@ private fun CurriculumList(
                     item = item,
                     index = index,
                     isDragging = isDragging,
+                    reorderableState = reorderableState,
                     onEdit = { onEdit(item) },
                     onDeleteRequest = { onDeleteRequest(item) }
                 )
@@ -222,18 +242,21 @@ private fun CurriculumItemCard(
     item: CurriculumItem,
     index: Int,
     isDragging: Boolean,
+    reorderableState: ReorderableState<*>,
     onEdit: () -> Unit,
     onDeleteRequest: () -> Unit
 ) {
     val props = item.toUiProps()
-    val elevation by animateDpAsState(if (isDragging) 8.dp else 0.dp, label = "elevation")
+    val elevation by animateDpAsState(if (isDragging) 8.dp else 2.dp, label = "elevation")
     val bgColor by animateColorAsState(
         if (isDragging) Color.White.copy(alpha = 0.9f) else Color.White,
         label = "bg"
     )
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = bgColor),
         elevation = CardDefaults.cardElevation(defaultElevation = elevation)
@@ -246,9 +269,12 @@ private fun CurriculumItemCard(
         ) {
             Icon(
                 imageVector = Icons.Default.DragHandle,
-                contentDescription = null,
+                contentDescription = "Drag to reorder",
                 tint = Color(0xFF94A3B8),
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier
+                    .size(48.dp)
+                    .padding(14.dp)
+                    .detectReorder(reorderableState)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Box(
@@ -272,7 +298,7 @@ private fun CurriculumItemCard(
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF1E293B),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    modifier = Modifier.basicMarquee()
                 )
                 Text(
                     text = props.subtitle,

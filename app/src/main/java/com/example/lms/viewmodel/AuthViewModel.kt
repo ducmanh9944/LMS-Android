@@ -23,6 +23,30 @@ class AuthViewModel(
     private val _event = MutableSharedFlow<AuthEvent>()
     val event = _event.asSharedFlow()
 
+    fun getCurrentUser() {
+        val uid = repository.getCurrentUserId() ?: return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            when (val result = repository.getUserDetails(uid)) {
+                is ResultState.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        currentUser = result.data
+                    )
+                }
+                is ResultState.Error -> {
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                    _event.emit(AuthEvent.ShowError(result.message))
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun getCurrentUserId(): String = repository.getCurrentUserId() ?: ""
+
+    fun isUserLoggedIn(): Boolean = repository.isUserLoggedIn()
+
     /* ========================
        UI STATE UPDATE
        ======================== */
@@ -176,10 +200,6 @@ class AuthViewModel(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
-    }
-
-    fun isUserLoggedIn(): Boolean {
-        return repository.isUserLoggedIn()
     }
 
     fun logout() {

@@ -14,6 +14,20 @@ class AuthRepository {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 
+    suspend fun getUserDetails(uid: String): ResultState<User> {
+        return try {
+            val snapshot = firestore.collection("users").document(uid).get().await()
+            val user = snapshot.toObject(User::class.java)
+            if (user != null) {
+                ResultState.Success(user)
+            } else {
+                ResultState.Error("Không tìm thấy thông tin người dùng")
+            }
+        } catch (e: Exception) {
+            ResultState.Error(e.localizedMessage ?: "Lỗi khi lấy thông tin người dùng")
+        }
+    }
+
     suspend fun login(
         email: String,
         password: String

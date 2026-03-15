@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lms.data.model.Course
 import com.example.lms.ui.component.CourseFilterStatus
 import com.example.lms.ui.component.InstructorCourseCard
@@ -31,7 +30,7 @@ import com.example.lms.viewmodel.CourseViewModel
 @Composable
 fun MyCoursesScreen(
     instructorId: String,
-    viewModel: CourseViewModel = viewModel(),
+    viewModel: CourseViewModel,
     onNavigateToAddCourse: () -> Unit,
     onNavigateToEditCourse: (Course) -> Unit,
     onManageContent: (Course) -> Unit
