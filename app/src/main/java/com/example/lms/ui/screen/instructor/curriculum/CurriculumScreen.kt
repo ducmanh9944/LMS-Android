@@ -396,7 +396,7 @@ private fun DeleteConfirmDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Xác nhận xóa", fontWeight = FontWeight.Bold) },
+        title = { Text("Xác nhận xóa", fontWeight = FontWeight.Bold, color = Color(0xFF1E293B)) },
         text = { Text("Bạn có chắc muốn xóa \"$title\"? Hành động này không thể hoàn tác.") },
         confirmButton = {
             Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))) {

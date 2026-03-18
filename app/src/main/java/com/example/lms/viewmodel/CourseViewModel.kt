@@ -63,6 +63,24 @@ class CourseViewModel(
         }
     }
 
+    fun getSuggestedCourses() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            when (val result = repository.getAllPublishedCourses()) {
+                is ResultState.Success -> {
+                    // Tạm thời lấy 2 khóa học như yêu cầu
+                    val courses = result.data.take(2)
+                    _uiState.update { it.copy(isLoading = false, suggestedCourses = courses) }
+                }
+                is ResultState.Error -> {
+                    _uiState.update { it.copy(isLoading = false) }
+                    _event.emit(CourseEvent.ShowError(result.message))
+                }
+                else -> {}
+            }
+        }
+    }
+
     fun onTitleChange() = _uiState.update { it.copy(titleError = null) }
     fun onDescriptionChange() = _uiState.update { it.copy(descriptionError = null) }
     fun onPriceChange() = _uiState.update { it.copy(priceError = null) }

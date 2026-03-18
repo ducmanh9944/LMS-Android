@@ -102,6 +102,20 @@ class CourseRepository {
         }
     }
 
+    suspend fun getAllPublishedCourses(): ResultState<List<Course>> {
+        return try {
+            val snapshot = coursesCollection
+                .whereEqualTo("isPublished", true)
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .get()
+                .await()
+            val courses = snapshot.toObjects(Course::class.java)
+            ResultState.Success(courses)
+        } catch (e: Exception) {
+            ResultState.Error(e.message ?: "Lấy danh sách khóa học thất bại")
+        }
+    }
+
     suspend fun updatePublishStatus(courseId: String, isPublished: Boolean): ResultState<Unit> {
         return try {
             coursesCollection

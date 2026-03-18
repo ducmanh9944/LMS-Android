@@ -23,6 +23,12 @@ class AuthViewModel(
     private val _event = MutableSharedFlow<AuthEvent>()
     val event = _event.asSharedFlow()
 
+    init {
+        if (repository.isUserLoggedIn()) {
+            getCurrentUser()
+        }
+    }
+
     fun getCurrentUser() {
         val uid = repository.getCurrentUserId() ?: return
         viewModelScope.launch {
@@ -36,7 +42,7 @@ class AuthViewModel(
                 }
                 is ResultState.Error -> {
                     _uiState.value = _uiState.value.copy(isLoading = false)
-                    _event.emit(AuthEvent.ShowError(result.message))
+                    viewModelScope.launch { _event.emit(AuthEvent.ShowError(result.message)) }
                 }
                 else -> {}
             }
@@ -86,22 +92,36 @@ class AuthViewModel(
     fun login() {
         val currentState = _uiState.value
         if (currentState.email.isBlank() || currentState.password.isBlank()) {
-            _uiState.value = currentState.copy(errorMessage = "Vui lòng nhập đầy đủ thông tin")
+            viewModelScope.launch {
+                _event.emit(AuthEvent.ShowError("Vui lòng nhập đầy đủ thông tin"))
+            }
             return
         }
 
         viewModelScope.launch {
             _uiState.value = currentState.copy(isLoading = true, errorMessage = null)
-            when (val result = repository.login(currentState.email, currentState.password)) {
+            when (val loginResult = repository.login(currentState.email, currentState.password)) {
                 is ResultState.Success -> {
-                    _uiState.value = _uiState.value.copy(isLoading = false)
-                    _event.emit(AuthEvent.NavigateToHome(result.data))
+                    when (val userResult = repository.getUserDetails(loginResult.data)) {
+                        is ResultState.Success -> {
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                currentUser = userResult.data
+                            )
+                            _event.emit(AuthEvent.NavigateToHome(loginResult.data))
+                        }
+                        is ResultState.Error -> {
+                            _uiState.value = _uiState.value.copy(isLoading = false)
+                            _event.emit(AuthEvent.ShowError("Lỗi lấy thông tin: ${userResult.message}"))
+                        }
+                        else -> {}
+                    }
                 }
                 is ResultState.Error -> {
                     _uiState.value = _uiState.value.copy(isLoading = false)
-                    _event.emit(AuthEvent.ShowError(result.message))
+                    _event.emit(AuthEvent.ShowError(loginResult.message))
                 }
-                ResultState.Loading -> { }
+                else -> {}
             }
         }
     }
@@ -110,12 +130,16 @@ class AuthViewModel(
         val currentState = _uiState.value
         
         if (currentState.fullName.isBlank() || currentState.email.isBlank() || currentState.password.isBlank()) {
-            _uiState.value = currentState.copy(errorMessage = "Vui lòng nhập đầy đủ thông tin")
+            viewModelScope.launch {
+                _event.emit(AuthEvent.ShowError("Vui lòng nhập đầy đủ thông tin"))
+            }
             return
         }
 
         if (currentState.password != currentState.confirmPassword) {
-            _uiState.value = currentState.copy(errorMessage = "Mật khẩu xác nhận không khớp")
+            viewModelScope.launch {
+                _event.emit(AuthEvent.ShowError("Mật khẩu xác nhận không khớp"))
+            }
             return
         }
 
@@ -146,18 +170,27 @@ class AuthViewModel(
     fun signInWithGoogle(idToken: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            
+
             when (val result = repository.signInWithGoogle(idToken)) {
-                is ResultState.Success -> {
-                    _uiState.value = _uiState.value.copy(isLoading = false)
+            is ResultState.Success -> {
+                val userResult = repository.getUserDetails(result.data)
+                if (userResult is ResultState.Success) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        currentUser = userResult.data
+                    )
                     _event.emit(AuthEvent.NavigateToHome(result.data))
-                }
-                is ResultState.Error -> {
+                } else {
                     _uiState.value = _uiState.value.copy(isLoading = false)
-                    _event.emit(AuthEvent.ShowError(result.message))
+                    _event.emit(AuthEvent.ShowError("Không thể lấy thông tin profile Google"))
                 }
-                ResultState.Loading -> { }
             }
+            is ResultState.Error -> {
+                _uiState.value = _uiState.value.copy(isLoading = false)
+                _event.emit(AuthEvent.ShowError(result.message))
+            }
+            else -> {}
+        }
         }
     }
 
@@ -166,9 +199,11 @@ class AuthViewModel(
        ======================== */
 
     fun sendPasswordResetEmail() {
-        val email = _uiState.value.email // Sử dụng lại trường email chung
+        val email = _uiState.value.email
         if (email.isBlank()) {
-            _uiState.value = _uiState.value.copy(errorMessage = "Vui lòng nhập email")
+            viewModelScope.launch {
+                _event.emit(AuthEvent.ShowError("Vui lòng nhập email"))
+            }
             return
         }
 
@@ -196,10 +231,6 @@ class AuthViewModel(
         viewModelScope.launch {
             _event.emit(AuthEvent.ShowError(message))
         }
-    }
-
-    fun clearError() {
-        _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
     fun logout() {

@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     navController: NavController,
-    viewModel: AuthViewModel = viewModel()
+    viewModel: AuthViewModel
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
