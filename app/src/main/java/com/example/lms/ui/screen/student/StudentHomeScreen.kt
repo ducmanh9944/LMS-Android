@@ -3,6 +3,7 @@ package com.example.lms.ui.screen.student
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -215,12 +216,12 @@ private fun SuggestedCourseCard(
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
 
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(90.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(SurfaceGray)
             ) {
@@ -239,33 +240,40 @@ private fun SuggestedCourseCard(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .height(80.dp),
+                    .heightIn(min = 80.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
 
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+
+                ) {
                     Text(
                         text = course.title,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 18.sp
+                        lineHeight = 16.sp
                     )
-
-                    Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
                         text = course.instructorName,
                         fontSize = 12.sp,
                         color = TextSecondary,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 14.sp
                     )
                 }
 
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
 
                     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -113,6 +113,11 @@ dependencies {
     // Reorderable LazyColumn
     implementation("org.burnoutcrew.composereorderable:reorderable:0.9.6")
 
+    // Video Player
+    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0")
+    implementation("androidx.media3:media3-exoplayer:1.3.1")
+    implementation("androidx.media3:media3-ui:1.3.1")
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

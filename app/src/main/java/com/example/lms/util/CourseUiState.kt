@@ -6,6 +6,7 @@ import com.example.lms.data.model.Course
 data class CourseUiState(
     val isLoading: Boolean = false,
     val courses: List<Course> = emptyList(),
+    val allPublishedCourses: List<Course> = emptyList(),
     val suggestedCourses: List<Course> = emptyList(),
     val categories: List<Category> = emptyList(),
     val errorMessage: String? = null,

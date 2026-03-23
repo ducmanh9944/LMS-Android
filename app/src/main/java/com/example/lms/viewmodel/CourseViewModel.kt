@@ -63,6 +63,27 @@ class CourseViewModel(
         }
     }
 
+    fun getAllPublishedCourses() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            when (val result = repository.getAllPublishedCourses()) {
+                is ResultState.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            allPublishedCourses = result.data
+                        )
+                    }
+                }
+                is ResultState.Error -> {
+                    _uiState.update { it.copy(isLoading = false) }
+                    _event.emit(CourseEvent.ShowError(result.message))
+                }
+                else -> {}
+            }
+        }
+    }
+
     fun getSuggestedCourses() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }

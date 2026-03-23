@@ -11,11 +11,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.lms.data.model.UserRole
 import com.example.lms.ui.component.InstructorBottomBar
 import com.example.lms.ui.component.StudentBottomBar
@@ -30,12 +32,11 @@ import com.example.lms.ui.screen.instructor.curriculum.CurriculumScreen
 import com.example.lms.ui.screen.instructor.curriculum.LessonFormScreen
 import com.example.lms.ui.screen.instructor.curriculum.QuizFormScreen
 import com.example.lms.ui.screen.instructor.profile.InstructorProfileScreen
+import com.example.lms.ui.screen.student.CourseDetailScreen
+import com.example.lms.ui.screen.student.LessonPlayerScreen
+import com.example.lms.ui.screen.student.SearchScreen
 import com.example.lms.ui.screen.student.StudentHomeScreen
-import com.example.lms.viewmodel.AuthViewModel
-import com.example.lms.viewmodel.CourseViewModel
-import com.example.lms.viewmodel.CurriculumViewModel
-import com.example.lms.viewmodel.LessonViewModel
-import com.example.lms.viewmodel.QuizViewModel
+import com.example.lms.viewmodel.*
 
 @Composable
 fun AppNavGraph() {
@@ -109,7 +110,11 @@ fun AppNavGraph() {
                     if (user.role == UserRole.INSTRUCTOR) {
                         InstructorHomeScreen(navController, authViewModel)
                     } else {
-                        StudentHomeScreen(navController, authViewModel)
+                        StudentHomeScreen(
+                            navController = navController, 
+                            authViewModel = authViewModel,
+                            courseViewModel = courseViewModel
+                        )
                     }
                 }
             }
@@ -127,6 +132,55 @@ fun AppNavGraph() {
             }
 
             // Student Flow
+            composable(Routes.SEARCH) {
+                SearchScreen(
+                    navController = navController,
+                    viewModel = courseViewModel,
+                    onCourseClick = { course ->
+                        navController.navigate("${Routes.COURSE_DETAIL}/${course.id}")
+                    }
+                )
+            }
+
+            composable(
+                route = "${Routes.COURSE_DETAIL}/{courseId}",
+                arguments = listOf(navArgument("courseId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val courseId = backStackEntry.arguments?.getString("courseId") ?: ""
+                val courseDetailViewModel: CourseDetailViewModel = viewModel()
+                CourseDetailScreen(
+                    navController = navController,
+                    viewModel = courseDetailViewModel,
+                    courseId = courseId,
+                    userId = authViewModel.getCurrentUserId(),
+                    onLessonClick = { itemId ->
+                        navController.navigate("${Routes.LESSON_PLAYER}/$courseId/$itemId")
+                    }
+                )
+            }
+
+            composable(
+                route = "${Routes.LESSON_PLAYER}/{courseId}/{itemId}",
+                arguments = listOf(
+                    navArgument("courseId") { type = NavType.StringType },
+                    navArgument("itemId") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val courseId = backStackEntry.arguments?.getString("courseId") ?: ""
+                val itemId = backStackEntry.arguments?.getString("itemId") ?: ""
+                val lessonPlayerViewModel: LessonPlayerViewModel = viewModel()
+                LessonPlayerScreen(
+                    navController = navController,
+                    viewModel = lessonPlayerViewModel,
+                    courseId = courseId,
+                    itemId = itemId,
+                    userId = authViewModel.getCurrentUserId(),
+                    onStartQuiz = { quizId ->
+                        // navController.navigate("${Routes.QUIZ_PLAYER}/$quizId")
+                    }
+                )
+            }
+
             composable(Routes.MY_LEARNING) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Màn hình khóa học của tôi")
@@ -137,9 +191,9 @@ fun AppNavGraph() {
                     Text("Màn hình thông báo")
                 }
             }
-            composable(Routes.SEARCH) {
+            composable(Routes.CART) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Màn hình tìm kiếm")
+                    Text("Gio hang")
                 }
             }
 

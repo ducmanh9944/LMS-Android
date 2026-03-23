@@ -63,7 +63,7 @@ class CourseRepository {
 
             val quizzesSnapshot = quizzesCollection.whereEqualTo("courseId", courseId).get().await()
             quizzesSnapshot.documents.forEach { batch.delete(it.reference) }
-
+//            Sau này xóa cứng các collection khác nữa
             batch.commit().await()
             ResultState.Success(Unit)
         } catch (e: Exception) {

@@ -14,6 +14,7 @@ object Routes {
     const val CART = "cart"
     const val COURSE_DETAIL = "course_detail"
     const val PROFILE = "profile"
+    const val LESSON_PLAYER = "lesson_player"
 
     // Instructor Routes
     const val INSTRUCTOR_HOME = "instructor_home"
