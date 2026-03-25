@@ -2,12 +2,14 @@ package com.example.lms.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lms.data.model.Review
 import com.example.lms.data.repository.CategoryRepository
 import com.example.lms.data.repository.CourseRepository
 import com.example.lms.data.repository.CurriculumRepository
 import com.example.lms.data.repository.EnrollmentRepository
 import com.example.lms.data.repository.AuthRepository
 import com.example.lms.data.repository.ProgressRepository
+import com.example.lms.data.repository.ReviewRepository
 import com.example.lms.util.CourseDetailEvent
 import com.example.lms.util.CourseDetailUiState
 import com.example.lms.util.ResultState
@@ -26,7 +28,8 @@ class CourseDetailViewModel(
     private val curriculumRepository: CurriculumRepository = CurriculumRepository(),
     private val categoryRepository: CategoryRepository = CategoryRepository(),
     private val authRepository: AuthRepository = AuthRepository(),
-    private val progressRepository: ProgressRepository = ProgressRepository()
+    private val progressRepository: ProgressRepository = ProgressRepository(),
+    private val reviewRepository: ReviewRepository = ReviewRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CourseDetailUiState())
@@ -49,16 +52,25 @@ class CourseDetailViewModel(
             val curriculumDeferred = async { curriculumRepository.getCurriculum(courseId) }
             val categoriesDeferred = async { categoryRepository.getCategories() }
             val progressDeferred = async { progressRepository.getProgress(userId, courseId) }
+            val reviewsDeferred = async { reviewRepository.getCourseReviews(courseId) }
+            val myReviewDeferred = async { reviewRepository.getMyReview(courseId, userId) }
 
             val courseResult = courseDeferred.await()
             val enrolledResult = enrolledDeferred.await()
             val curriculumResult = curriculumDeferred.await()
             val categoriesResult = categoriesDeferred.await()
             val progressResult = progressDeferred.await()
+            val reviewsResult = reviewsDeferred.await()
+            val myReviewResult = myReviewDeferred.await()
 
             if (courseResult is ResultState.Success) {
                 val instructorId = courseResult.data.instructorId
                 val instructorResult = authRepository.getUserDetails(instructorId)
+                val myReview = (myReviewResult as? ResultState.Success)?.data
+                val orderedReviews = sortReviewsForUser(
+                    userId = userId,
+                    reviews = (reviewsResult as? ResultState.Success)?.data ?: emptyList()
+                )
                 
                 _uiState.update {
                     it.copy(
@@ -68,7 +80,13 @@ class CourseDetailViewModel(
                         curriculum = (curriculumResult as? ResultState.Success)?.data ?: emptyList(),
                         categories = (categoriesResult as? ResultState.Success)?.data ?: emptyList(),
                         instructor = (instructorResult as? ResultState.Success)?.data,
-                        progress = (progressResult as? ResultState.Success)?.data
+                        progress = (progressResult as? ResultState.Success)?.data,
+                        reviews = orderedReviews,
+                        myReview = myReview,
+                        reviewDraftRating = myReview?.rating ?: 5,
+                        reviewDraftContent = myReview?.content.orEmpty(),
+                        isEditingReview = false,
+                        isLoadingReviews = false
                     )
                 }
             } else if (courseResult is ResultState.Error) {
@@ -78,11 +96,186 @@ class CourseDetailViewModel(
         }
     }
 
+    fun refreshReviews(courseId: String, userId: String, showLoading: Boolean = false) {
+        viewModelScope.launch {
+            if (showLoading) {
+                _uiState.update { it.copy(isLoadingReviews = true) }
+            }
+
+            val reviewsDeferred = async { reviewRepository.getCourseReviews(courseId) }
+            val myReviewDeferred = async { reviewRepository.getMyReview(courseId, userId) }
+
+            val reviewsResult = reviewsDeferred.await()
+            val myReviewResult = myReviewDeferred.await()
+
+            val reviews = (reviewsResult as? ResultState.Success)?.data
+            val myReview = (myReviewResult as? ResultState.Success)?.data
+
+            if (reviews != null) {
+                val orderedReviews = sortReviewsForUser(userId = userId, reviews = reviews)
+                _uiState.update {
+                    it.copy(
+                        reviews = orderedReviews,
+                        myReview = myReview,
+                        reviewDraftRating = if (it.isEditingReview) it.reviewDraftRating else (myReview?.rating ?: it.reviewDraftRating),
+                        reviewDraftContent = if (it.isEditingReview) it.reviewDraftContent else myReview?.content.orEmpty(),
+                        isLoadingReviews = false
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(isLoadingReviews = false) }
+                val message = (reviewsResult as? ResultState.Error)?.message
+                    ?: (myReviewResult as? ResultState.Error)?.message
+                    ?: "Tải đánh giá thất bại"
+                _event.emit(CourseDetailEvent.ShowError(message))
+            }
+        }
+    }
+
     fun refreshProgressOnly(courseId: String, userId: String) {
         viewModelScope.launch {
             val result = progressRepository.getProgress(userId, courseId)
             if (result is ResultState.Success) {
                 _uiState.update { it.copy(progress = result.data) }
+            }
+        }
+    }
+
+    fun onReviewRatingChanged(rating: Int) {
+        _uiState.update { it.copy(reviewDraftRating = rating.coerceIn(1, 5)) }
+    }
+
+    fun onReviewContentChanged(content: String) {
+        _uiState.update { it.copy(reviewDraftContent = content) }
+    }
+
+    fun startEditMyReview() {
+        val myReview = _uiState.value.myReview ?: return
+        _uiState.update {
+            it.copy(
+                reviewDraftRating = myReview.rating,
+                reviewDraftContent = myReview.content,
+                isEditingReview = true
+            )
+        }
+    }
+
+    fun cancelEditReview() {
+        val myReview = _uiState.value.myReview
+        _uiState.update {
+            it.copy(
+                reviewDraftRating = myReview?.rating ?: 5,
+                reviewDraftContent = myReview?.content.orEmpty(),
+                isEditingReview = false
+            )
+        }
+    }
+
+    fun submitReview(courseId: String, userId: String) {
+        if (_uiState.value.isSubmittingReview || _uiState.value.isDeletingReview) return
+        if (!_uiState.value.isEnrolled) {
+            viewModelScope.launch {
+                _event.emit(CourseDetailEvent.ShowError("Bạn cần đăng ký khóa học trước khi đánh giá"))
+            }
+            return
+        }
+
+        val rating = _uiState.value.reviewDraftRating
+        val content = _uiState.value.reviewDraftContent.trim()
+
+        if (content.isBlank()) {
+            viewModelScope.launch {
+                _event.emit(CourseDetailEvent.ShowError("Nội dung đánh giá không được để trống"))
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSubmittingReview = true) }
+
+            val userResult = authRepository.getUserDetails(userId)
+            if (userResult !is ResultState.Success) {
+                _uiState.update { it.copy(isSubmittingReview = false) }
+                val message = (userResult as? ResultState.Error)?.message ?: "Không lấy được thông tin người dùng"
+                _event.emit(CourseDetailEvent.ShowError(message))
+                return@launch
+            }
+
+            val submitResult = reviewRepository.upsertReview(
+                courseId = courseId,
+                userId = userId,
+                userName = userResult.data.fullName,
+                userAvatarUrl = userResult.data.avatarUrl.orEmpty(),
+                rating = rating,
+                content = content
+            )
+
+            when (submitResult) {
+                is ResultState.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            myReview = submitResult.data,
+                            reviewDraftRating = submitResult.data.rating,
+                            reviewDraftContent = submitResult.data.content,
+                            isEditingReview = false,
+                            isSubmittingReview = false,
+                            isDeletingReview = false
+                        )
+                    }
+
+                    refreshReviews(courseId, userId)
+
+                    when (val courseResult = courseRepository.getCourseById(courseId)) {
+                        is ResultState.Success -> _uiState.update { it.copy(course = courseResult.data) }
+                        is ResultState.Error -> _event.emit(CourseDetailEvent.ShowError(courseResult.message))
+                        else -> Unit
+                    }
+                }
+                is ResultState.Error -> {
+                    _uiState.update { it.copy(isSubmittingReview = false) }
+                    _event.emit(CourseDetailEvent.ShowError(submitResult.message))
+                }
+                else -> {
+                    _uiState.update { it.copy(isSubmittingReview = false) }
+                }
+            }
+        }
+    }
+
+    fun deleteMyReview(courseId: String, userId: String) {
+        if (_uiState.value.isDeletingReview || _uiState.value.isSubmittingReview) return
+        if (_uiState.value.myReview == null) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeletingReview = true) }
+
+            when (val result = reviewRepository.deleteReview(courseId = courseId, userId = userId)) {
+                is ResultState.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            myReview = null,
+                            reviewDraftRating = 5,
+                            reviewDraftContent = "",
+                            isEditingReview = false,
+                            isDeletingReview = false
+                        )
+                    }
+
+                    refreshReviews(courseId, userId)
+
+                    when (val courseResult = courseRepository.getCourseById(courseId)) {
+                        is ResultState.Success -> _uiState.update { it.copy(course = courseResult.data) }
+                        is ResultState.Error -> _event.emit(CourseDetailEvent.ShowError(courseResult.message))
+                        else -> Unit
+                    }
+                }
+
+                is ResultState.Error -> {
+                    _uiState.update { it.copy(isDeletingReview = false) }
+                    _event.emit(CourseDetailEvent.ShowError(result.message))
+                }
+
+                else -> _uiState.update { it.copy(isDeletingReview = false) }
             }
         }
     }
@@ -110,5 +303,12 @@ class CourseDetailViewModel(
                 else -> {}
             }
         }
+    }
+
+    private fun sortReviewsForUser(userId: String, reviews: List<Review>): List<Review> {
+        return reviews.sortedWith(
+            compareByDescending<Review> { it.userId == userId }
+                .thenByDescending { it.updatedAt }
+        )
     }
 }

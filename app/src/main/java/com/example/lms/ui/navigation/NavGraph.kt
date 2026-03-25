@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -34,11 +35,12 @@ import com.example.lms.ui.screen.instructor.curriculum.QuizFormScreen
 import com.example.lms.ui.screen.instructor.profile.InstructorProfileScreen
 import com.example.lms.ui.screen.student.CourseDetailScreen
 import com.example.lms.ui.screen.student.LessonPlayerScreen
+import com.example.lms.ui.screen.student.MyLearningRoute
 import com.example.lms.ui.screen.student.QuizAttemptRoute
 import com.example.lms.ui.screen.student.QuizResultRoute
 import com.example.lms.ui.screen.student.QuizReviewRoute
 import com.example.lms.ui.screen.student.SearchScreen
-import com.example.lms.ui.screen.student.StudentHomeScreen
+import com.example.lms.ui.screen.student.StudentHomeRoute
 import com.example.lms.viewmodel.*
 
 @Composable
@@ -51,6 +53,7 @@ fun AppNavGraph() {
     val lessonViewModel: LessonViewModel = viewModel()
     val quizViewModel: QuizViewModel = viewModel()
     val quizAttemptViewModel: QuizAttemptViewModel = viewModel()
+    val myLearningViewModel: MyLearningViewModel = viewModel()
 
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val user = authUiState.currentUser
@@ -114,10 +117,35 @@ fun AppNavGraph() {
                     if (user.role == UserRole.INSTRUCTOR) {
                         InstructorHomeScreen(navController, authViewModel)
                     } else {
-                        StudentHomeScreen(
-                            navController = navController, 
+                        StudentHomeRoute(
                             authViewModel = authViewModel,
-                            courseViewModel = courseViewModel
+                            courseViewModel = courseViewModel,
+                            myLearningViewModel = myLearningViewModel,
+                            onSearchClick = { navController.navigate(Routes.SEARCH) },
+                            onCartClick = { navController.navigate(Routes.CART) },
+                            onSeeAllClick = {
+                                navController.navigate(Routes.MY_LEARNING) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            onContinueClick = { item ->
+                                val lastLessonId = item.lastLessonId
+                                if (lastLessonId.isNotBlank()) {
+                                    navController.navigate("${Routes.LESSON_PLAYER}/${item.course.id}/$lastLessonId")
+                                } else {
+                                    navController.navigate("${Routes.COURSE_DETAIL}/${item.course.id}")
+                                }
+                            },
+                            onMyCourseClick = { item ->
+                                navController.navigate("${Routes.COURSE_DETAIL}/${item.course.id}")
+                            },
+                            onSuggestedCourseClick = { course ->
+                                navController.navigate("${Routes.COURSE_DETAIL}/${course.id}")
+                            }
                         )
                     }
                 }
@@ -265,9 +293,18 @@ fun AppNavGraph() {
 
 
             composable(Routes.MY_LEARNING) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Màn hình khóa học của tôi")
-                }
+                MyLearningRoute(
+                    userId = authViewModel.getCurrentUserId(),
+                    viewModel = myLearningViewModel,
+                    onCourseClick = { courseId ->
+                        navController.navigate("${Routes.COURSE_DETAIL}/$courseId")
+                    },
+                    onExploreCoursesClick = {
+                        navController.navigate(Routes.SEARCH) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
             composable(Routes.NOTIFICATIONS) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

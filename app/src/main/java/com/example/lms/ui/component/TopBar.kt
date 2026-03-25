@@ -12,7 +12,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun TopBar(
     title: String,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    showBackButton: Boolean = true
 ) {
     CenterAlignedTopAppBar(
         title = {
@@ -24,12 +25,14 @@ fun TopBar(
             )
         },
         navigationIcon = {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Quay lại",
-                    tint = Color(0xFF4B5CC4)
-                )
+            if (showBackButton) {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Quay lại",
+                        tint = Color(0xFF4B5CC4)
+                    )
+                }
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(

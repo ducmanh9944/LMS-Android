@@ -32,14 +32,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.lms.data.model.Course
+import com.example.lms.data.model.MyLearningItem
 import com.example.lms.ui.component.ProgressBar
-import com.example.lms.ui.navigation.Routes
 import com.example.lms.util.formatPrice
 import com.example.lms.viewmodel.AuthViewModel
 import com.example.lms.viewmodel.CourseViewModel
+import com.example.lms.viewmodel.MyLearningViewModel
 
 private val Indigo = Color(0xFF4B5CC4)
 private val StarYellow = Color(0xFFFFC107)
@@ -49,54 +49,115 @@ private val TextSecondary = Color(0xFF6B7280)
 private val CardWhite = Color(0xFFFFFFFF)
 
 @Composable
-fun StudentHomeScreen(
-    navController: NavController,
+fun StudentHomeRoute(
     authViewModel: AuthViewModel,
-    courseViewModel: CourseViewModel = viewModel()
+    courseViewModel: CourseViewModel = viewModel(),
+    myLearningViewModel: MyLearningViewModel = viewModel(),
+    onSearchClick: () -> Unit,
+    onCartClick: () -> Unit,
+    onSeeAllClick: () -> Unit,
+    onContinueClick: (MyLearningItem) -> Unit,
+    onMyCourseClick: (MyLearningItem) -> Unit,
+    onSuggestedCourseClick: (Course) -> Unit
 ) {
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val courseUiState by courseViewModel.uiState.collectAsStateWithLifecycle()
+    val myLearningUiState by myLearningViewModel.uiState.collectAsStateWithLifecycle()
     val user = authUiState.currentUser
 
     LaunchedEffect(Unit) {
         courseViewModel.getSuggestedCourses()
     }
 
-    val continueCourse = remember {
-        Course(id = "1", title = "Advanced Machine Learning", duration = "Bài học 12: Neural Networks")
+    LaunchedEffect(user?.uid) {
+        val uid = user?.uid.orEmpty()
+        if (uid.isNotBlank()) {
+            myLearningViewModel.loadMyLearning(uid)
+        }
     }
-    val myCourses = remember {
-        listOf(
-            Course(id = "1", title = "UI/UX Design", instructorName = "8/20 Bài học"),
-            Course(id = "2", title = "Full-stack React", instructorName = "4/15 Bài học")
-        )
+
+    val continueCourse = remember(myLearningUiState.inProgressCourses) {
+        myLearningUiState.inProgressCourses.firstOrNull()
     }
+    val myCourses = remember(myLearningUiState.inProgressCourses) {
+        myLearningUiState.inProgressCourses.take(3)
+    }
+
+    StudentHomeScreen(
+        userName = user?.fullName ?: "Học viên",
+        avatarUrl = user?.avatarUrl ?: "",
+        isSuggestedLoading = courseUiState.isLoading,
+        suggestedCourses = courseUiState.suggestedCourses,
+        continueCourse = continueCourse,
+        myCourses = myCourses,
+        onSearchClick = onSearchClick,
+        onCartClick = onCartClick,
+        onSeeAllClick = onSeeAllClick,
+        onContinueClick = onContinueClick,
+        onMyCourseClick = onMyCourseClick,
+        onSuggestedCourseClick = onSuggestedCourseClick
+    )
+}
+
+@Composable
+fun StudentHomeScreen(
+    userName: String,
+    avatarUrl: String,
+    isSuggestedLoading: Boolean,
+    suggestedCourses: List<Course>,
+    continueCourse: MyLearningItem?,
+    myCourses: List<MyLearningItem>,
+    onSearchClick: () -> Unit,
+    onCartClick: () -> Unit,
+    onSeeAllClick: () -> Unit,
+    onContinueClick: (MyLearningItem) -> Unit,
+    onMyCourseClick: (MyLearningItem) -> Unit,
+    onSuggestedCourseClick: (Course) -> Unit
+) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(SurfaceGray),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        // ── Header ──
         item {
             StudentHeader(
-                userName = user?.fullName ?: "Học viên",
-                avatarUrl = user?.avatarUrl ?: "",
-                onSearchClick = { navController.navigate(Routes.SEARCH) },
-                onCartClick = { navController.navigate(Routes.CART) }
+                userName = userName,
+                avatarUrl = avatarUrl,
+                onSearchClick = onSearchClick,
+                onCartClick = onCartClick
             )
         }
-
-        // ── Tiếp tục học ──
+        
         item {
             SectionTitle("Tiếp tục học", Modifier.padding(16.dp, 8.dp))
-            ContinueLearningCard(
-                course = continueCourse,
-                onContinueClick = { /* Navigate to player */ },
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+            if (continueCourse != null) {
+                ContinueLearningCard(
+                    item = continueCourse,
+                    onContinueClick = {
+                        onContinueClick(continueCourse)
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            } else {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(CardWhite)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Bạn chưa có khóa học để tiếp tục", color = TextSecondary, fontSize = 13.sp)
+                    }
+                }
+            }
         }
 
-        // ── Khóa học đang học ──
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp),
@@ -106,31 +167,37 @@ fun StudentHomeScreen(
                 SectionTitle("Các khóa học đang học")
                 Text(
                     text = "Xem tất cả", color = Indigo, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clickable { navController.navigate(Routes.MY_LEARNING) }
+                    modifier = Modifier.clickable(onClick = onSeeAllClick)
                 )
             }
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(myCourses) { MyCourseCard(it) }
+                items(myCourses, key = { it.course.id }) {
+                    MyCourseCard(
+                        item = it,
+                        onClick = {
+                            onMyCourseClick(it)
+                        }
+                    )
+                }
             }
         }
 
-        // ── Gợi ý cho bạn  ──
         item { SectionTitle("Gợi ý cho bạn", Modifier.padding(16.dp, 12.dp)) }
         
-        if (courseUiState.isLoading) {
+        if (isSuggestedLoading) {
             item {
                 Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Indigo, modifier = Modifier.size(30.dp))
                 }
             }
         } else {
-            items(courseUiState.suggestedCourses) { course ->
+            items(suggestedCourses) { course ->
                 SuggestedCourseCard(
                     course = course,
-                    onClick = { },
+                    onClick = { onSuggestedCourseClick(course) },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
@@ -160,22 +227,28 @@ private fun StudentHeader(userName: String, avatarUrl: String, onSearchClick: ()
 }
 
 @Composable
-private fun ContinueLearningCard(course: Course, onContinueClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ContinueLearningCard(item: MyLearningItem, onContinueClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(CardWhite), elevation = CardDefaults.cardElevation(2.dp)) {
         Column {
             Box(Modifier.fillMaxWidth().height(160.dp).background(Brush.linearGradient(listOf(Color(0xFF2C3E8C), Color(0xFF6B79D4), Color(0xFFE8A838))))) {
-                if (course.thumbnailUrl.isNotBlank()) AsyncImage(course.thumbnailUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                if (item.course.thumbnailUrl.isNotBlank()) AsyncImage(item.course.thumbnailUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
             Column(Modifier.padding(16.dp)) {
-                Text(course.title, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(course.duration, fontSize = 13.sp, color = TextSecondary)
+                Text(item.course.title, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val lessonLabel = if (item.lastLessonOrderIndex >= 0 && item.lastLessonTitle.isNotBlank()) {
+                    "Bài học ${item.lastLessonOrderIndex + 1}: ${item.lastLessonTitle}"
+                } else {
+                    "Bắt đầu ngay nào!"
+                }
+                Text(lessonLabel, fontSize = 13.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("75% Hoàn thành", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Indigo)
-                    Text("12/16 Bài học", fontSize = 12.sp, color = TextSecondary)
+                    Text("${item.progressPercent}% Hoàn thành", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Indigo)
+                    val total = item.totalLessons.coerceAtLeast(0)
+                    Text("${item.completedLessons}/$total Bài học", fontSize = 12.sp, color = TextSecondary)
                 }
                 Spacer(Modifier.height(6.dp))
-                ProgressBar(progress = 0.75f)
+                ProgressBar(progress = (item.progressPercent / 100f).coerceIn(0f, 1f))
                 Spacer(Modifier.height(16.dp))
                 Button(onContinueClick, Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(Indigo)) {
                     Icon(Icons.Default.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Tiếp tục", fontWeight = FontWeight.SemiBold)
@@ -186,16 +259,26 @@ private fun ContinueLearningCard(course: Course, onContinueClick: () -> Unit, mo
 }
 
 @Composable
-private fun MyCourseCard(course: Course) {
-    Card(Modifier.width(155.dp), RoundedCornerShape(12.dp), CardDefaults.cardColors(CardWhite), elevation = CardDefaults.cardElevation(2.dp)) {
+private fun MyCourseCard(item: MyLearningItem, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.width(155.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(CardWhite),
+        elevation = CardDefaults.cardElevation(2.dp),
+        onClick = onClick
+    ) {
         Column {
-            Box(Modifier.fillMaxWidth().height(100.dp).background(Brush.linearGradient(listOf(Color(0xFFE8926A), Color(0xFFF5C49A)))))
+            Box(Modifier.fillMaxWidth().height(100.dp).background(Brush.linearGradient(listOf(Color(0xFFE8926A), Color(0xFFF5C49A))))) {
+                if (item.course.thumbnailUrl.isNotBlank()) {
+                    AsyncImage(item.course.thumbnailUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                }
+            }
             Column(Modifier.padding(10.dp)) {
-                Text(course.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 18.sp)
-                Text(course.instructorName, fontSize = 11.sp, color = TextSecondary)
+                Text(item.course.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 18.sp)
+                val total = item.totalLessons.coerceAtLeast(0)
+                Text("${item.completedLessons}/$total Bài học", fontSize = 11.sp, color = TextSecondary)
                 Spacer(Modifier.height(6.dp))
-//                LinearProgressIndicator(progress = { 0.4f }, Modifier.fillMaxWidth().height(4.dp).clip(CircleShape), color = Indigo, trackColor = Indigo.copy(0.15f))
-                ProgressBar(progress = 0.4f, height = 5.dp)
+                ProgressBar(progress = (item.progressPercent / 100f).coerceIn(0f, 1f), height = 5.dp)
             }
         }
     }

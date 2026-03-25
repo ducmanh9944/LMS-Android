@@ -11,11 +11,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +47,7 @@ import com.example.lms.util.CourseDetailEvent
 import com.example.lms.util.CourseDetailUiState
 import com.example.lms.util.formatPrice
 import com.example.lms.viewmodel.CourseDetailViewModel
+import java.util.Locale
 
 
 private val Indigo        = Color(0xFF4B5CC4)
@@ -64,6 +68,7 @@ fun CourseDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     // Chỉ load toàn bộ khi ID khóa học thay đổi
     LaunchedEffect(courseId, userId) {
@@ -104,27 +109,42 @@ fun CourseDetailScreen(
         containerColor = SurfaceGray,
         bottomBar = {
             if (!uiState.isLoading && uiState.course != null) {
-                CourseDetailBottomBar(
-                    course = uiState.course!!,
-                    isEnrolled = uiState.isEnrolled,
-                    isEnrolling = uiState.isEnrolling,
-                    onEnrollClick = {
-                        val lastLessonId = uiState.progress?.lastLessonId
-                        val firstItemId = uiState.curriculum.firstOrNull()?.id
-                        val targetId = if (!lastLessonId.isNullOrEmpty()) lastLessonId else firstItemId
-                        
-                        if (targetId != null) {
-                            onLessonClick(targetId)
-                        } else {
-                            Toast.makeText(context, "Khóa học chưa có nội dung", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onBuyNowClick = {
-                        if (!uiState.isEnrolled) {
-                            viewModel.enrollCourse(userId, courseId)
-                        }
+                val showReviewComposer = uiState.isEnrolled && (uiState.myReview == null || uiState.isEditingReview)
+                when (selectedTab) {
+                    1 if showReviewComposer -> {
+                        ReviewComposerBottomBar(
+                            uiState = uiState,
+                            onRatingChanged = viewModel::onReviewRatingChanged,
+                            onContentChanged = viewModel::onReviewContentChanged,
+                            onCancelEdit = viewModel::cancelEditReview,
+                            onSubmit = { viewModel.submitReview(courseId, userId) }
+                        )
                     }
-                )
+                    0 -> {
+                        CourseDetailBottomBar(
+                            course = uiState.course!!,
+                            isEnrolled = uiState.isEnrolled,
+                            isEnrolling = uiState.isEnrolling,
+                            onEnrollClick = {
+                                val lastLessonId = uiState.progress?.lastLessonId
+                                val firstItemId = uiState.curriculum.firstOrNull()?.id
+                                val targetId = if (!lastLessonId.isNullOrEmpty()) lastLessonId else firstItemId
+
+                                if (targetId != null) {
+                                    onLessonClick(targetId)
+                                } else {
+                                    Toast.makeText(context, "Khóa học chưa có nội dung", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onBuyNowClick = {
+                                if (!uiState.isEnrolled) {
+                                    viewModel.enrollCourse(userId, courseId)
+                                }
+                            }
+                        )
+                    }
+                    else -> Unit
+                }
             }
         }
     ) { paddingValues ->
@@ -136,6 +156,11 @@ fun CourseDetailScreen(
                     paddingValues = PaddingValues(0.dp),
                     course = uiState.course!!,
                     uiState = uiState,
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    courseId = courseId,
+                    userId = userId,
+                    viewModel = viewModel,
                     onLessonClick = onLessonClick
                 )
             }
@@ -162,6 +187,11 @@ private fun CourseDetailContent(
     paddingValues: PaddingValues,
     course: Course,
     uiState: CourseDetailUiState,
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    courseId: String,
+    userId: String,
+    viewModel: CourseDetailViewModel,
     onLessonClick: (String) -> Unit
 ) {
     LazyColumn(
@@ -184,6 +214,12 @@ private fun CourseDetailContent(
                 course = course,
                 curriculum = uiState.curriculum,
                 isEnrolled = uiState.isEnrolled,
+                selectedTab = selectedTab,
+                onTabSelected = onTabSelected,
+                uiState = uiState,
+                courseId = courseId,
+                userId = userId,
+                viewModel = viewModel,
                 onLessonClick = onLessonClick
             )
         }
@@ -314,16 +350,32 @@ private fun InstructorSection(instructorName: String, avatarUrl: String?, modifi
 }
 
 @Composable
-private fun CourseDetailTabs(course: Course, curriculum: List<CurriculumItem>, isEnrolled: Boolean, onLessonClick: (String) -> Unit) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+private fun CourseDetailTabs(
+    course: Course,
+    curriculum: List<CurriculumItem>,
+    isEnrolled: Boolean,
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    uiState: CourseDetailUiState,
+    courseId: String,
+    userId: String,
+    viewModel: CourseDetailViewModel,
+    onLessonClick: (String) -> Unit
+) {
     val tabs = listOf("Tổng quan", "Đánh giá")
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 1 && uiState.reviews.isEmpty() && !uiState.isLoadingReviews) {
+            viewModel.refreshReviews(courseId = courseId, userId = userId, showLoading = true)
+        }
+    }
 
     Column(modifier = Modifier.fillMaxWidth().background(CardWhite)) {
         TabRow(selectedTabIndex = selectedTab, containerColor = CardWhite, contentColor = Indigo, indicator = { tabPositions ->
                 TabRowDefaults.SecondaryIndicator(modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]), color = Indigo)
         }) {
             tabs.forEachIndexed { index, title ->
-                Tab(selected = selectedTab == index, onClick = { selectedTab = index },
+                Tab(selected = selectedTab == index, onClick = { onTabSelected(index) },
                     text = { Text(text = title, fontSize = 14.sp, fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal) },
                     selectedContentColor = Indigo, unselectedContentColor = TextSecondary
                 )
@@ -331,7 +383,12 @@ private fun CourseDetailTabs(course: Course, curriculum: List<CurriculumItem>, i
         }
         when (selectedTab) {
             0 -> OverviewTab(course, curriculum, isEnrolled, onLessonClick)
-            1 -> ReviewTab()
+            1 -> ReviewTab(
+                uiState = uiState,
+                currentUserId = userId,
+                onStartEdit = viewModel::startEditMyReview,
+                onDelete = { viewModel.deleteMyReview(courseId = courseId, userId = userId) }
+            )
         }
     }
 }
@@ -505,9 +562,408 @@ private fun CurriculumRow(
 }
 
 @Composable
-private fun ReviewTab() {
-    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-        Text(text = "Chưa có đánh giá", fontSize = 14.sp, color = TextSecondary)
+private fun ReviewTab(
+    uiState: CourseDetailUiState,
+    currentUserId: String,
+    onStartEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var menuForReviewId by remember { mutableStateOf<String?>(null) }
+    val totalReviews = uiState.reviews.size
+    val averageRating = if (totalReviews == 0) 0.0 else uiState.reviews.map { it.rating }.average()
+
+    val ratingDistribution = remember(uiState.reviews) {
+        (5 downTo 1).associateWith { star -> uiState.reviews.count { it.rating == star } }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Xóa đánh giá") },
+            text = { Text("Bạn có chắc muốn xóa đánh giá này không?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete()
+                    }
+                ) {
+                    Text("Xóa", color = Color(0xFFDC2626))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Hủy")
+                }
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CardWhite)
+    ) {
+        ReviewSummarySection(
+            averageRating = averageRating,
+            reviewCount = totalReviews,
+            distribution = ratingDistribution
+        )
+
+        uiState.reviews.forEachIndexed { index, review ->
+            ReviewItem(
+                review = review,
+                isMine = review.userId == currentUserId,
+                onMenuToggle = {
+                    menuForReviewId = if (menuForReviewId == review.id) null else review.id
+                },
+                menuExpanded = menuForReviewId == review.id,
+                onDismissMenu = { menuForReviewId = null },
+                onEdit = {
+                    menuForReviewId = null
+                    onStartEdit()
+                },
+                onDelete = {
+                    menuForReviewId = null
+                    showDeleteConfirm = true
+                }
+            )
+            HorizontalDivider(thickness = 1.dp, color = Color(0xFFE5E7EB))
+        }
+
+        if (uiState.reviews.isEmpty() && !uiState.isLoadingReviews) {
+            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+                Text(text = "Chưa có đánh giá", fontSize = 14.sp, color = TextSecondary)
+            }
+        }
+
+        if (uiState.isLoadingReviews) {
+            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Indigo)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewComposerBottomBar(
+    uiState: CourseDetailUiState,
+    onRatingChanged: (Int) -> Unit,
+    onContentChanged: (String) -> Unit,
+    onCancelEdit: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    val formEnabled = uiState.isEnrolled && !uiState.isSubmittingReview && !uiState.isDeletingReview
+
+    Surface(modifier = Modifier.fillMaxWidth(), color = CardWhite, shadowElevation = 0.dp) {
+        HorizontalDivider(thickness = 1.dp, color = Color(0xFFE5E7EB))
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (uiState.isEditingReview) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Chỉnh sửa đánh giá của bạn",
+                        color = Indigo,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    TextButton(onClick = onCancelEdit) {
+                        Text("Hủy")
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                (1..5).forEach { star ->
+                    Icon(
+                        imageVector = if (star <= uiState.reviewDraftRating) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = null,
+                        tint = if (star <= uiState.reviewDraftRating) StarYellow else Color(0xFFD1D5DB),
+                        modifier = Modifier
+                            .padding(horizontal = 2.dp)
+                            .size(22.dp)
+                            .clickable(enabled = formEnabled) { onRatingChanged(star) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = uiState.reviewDraftContent,
+                    onValueChange = onContentChanged,
+                    modifier = Modifier.weight(1f),
+                    enabled = formEnabled,
+                    placeholder = { Text("Gửi đánh giá của bạn...", color = Color(0xFF9CA3AF)) },
+                    shape = RoundedCornerShape(23.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        disabledBorderColor = Color.Transparent,
+                        focusedContainerColor = Color(0xFFF2F3F7),
+                        unfocusedContainerColor = Color(0xFFF2F3F7),
+                        disabledContainerColor = Color(0xFFE5E7EB)
+                    )
+                )
+
+                Button(
+                    onClick = onSubmit,
+                    enabled = formEnabled && uiState.reviewDraftContent.isNotBlank(),
+                    modifier = Modifier.size(46.dp),
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Indigo)
+                ) {
+                    if (uiState.isSubmittingReview || uiState.isDeletingReview) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Gửi đánh giá",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewSummarySection(
+    averageRating: Double,
+    reviewCount: Int,
+    distribution: Map<Int, Int>
+) {
+    val safeAvg = if (reviewCount == 0) 0.0 else averageRating
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.width(104.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = String.format(Locale.US, "%.1f", safeAvg),
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
+                lineHeight = 44.sp
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                val rounded = safeAvg.toInt().coerceIn(0, 5)
+                (1..5).forEach { star ->
+                    Icon(
+                        imageVector = if (star <= rounded) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = null,
+                        tint = if (star <= rounded) StarYellow else Color(0xFFD1D5DB),
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = "$reviewCount đánh giá",
+                fontSize = 13.sp,
+                color = TextSecondary,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            (5 downTo 1).forEach { star ->
+                val count = distribution[star] ?: 0
+                val percent = if (reviewCount == 0) 0 else (count * 100 / reviewCount)
+                RatingDistributionRow(
+                    star = star,
+                    percent = percent
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RatingDistributionRow(star: Int, percent: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = star.toString(),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextPrimary,
+            modifier = Modifier.width(10.dp),
+            textAlign = TextAlign.End
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(12.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(Color(0xFFE9ECF3))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth((percent / 100f).coerceIn(0f, 1f))
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Indigo)
+            )
+        }
+
+        Text(
+            text = "$percent%",
+            fontSize = 13.sp,
+            color = TextSecondary,
+            modifier = Modifier.width(38.dp),
+            textAlign = TextAlign.End
+        )
+    }
+}
+
+@Composable
+private fun ReviewItem(
+    review: Review,
+    isMine: Boolean,
+    onMenuToggle: () -> Unit,
+    menuExpanded: Boolean,
+    onDismissMenu: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        if (review.userAvatarUrl.isNotBlank()) {
+            AsyncImage(
+                model = review.userAvatarUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(Indigo.copy(0.15f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Person, null, tint = Indigo)
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        text = if (isMine) "${review.userName} (Bạn)" else review.userName,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = formatRelativeTime(review.updatedAt),
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
+
+                Box {
+                    if (isMine) {
+                        IconButton(onClick = onMenuToggle, modifier = Modifier.size(24.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.MoreHoriz,
+                                contentDescription = "Tuỳ chọn đánh giá",
+                                tint = TextSecondary
+                            )
+                        }
+
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = onDismissMenu) {
+                            DropdownMenuItem(
+                                text = { Text("Sửa") },
+                                onClick = onEdit
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Xóa", color = Color(0xFFDC2626)) },
+                                onClick = onDelete
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                (1..5).forEach { star ->
+                    Icon(
+                        imageVector = if (star <= review.rating) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = null,
+                        tint = if (star <= review.rating) StarYellow else Color(0xFFD1D5DB),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = review.content,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                color = TextPrimary,
+                lineHeight = 22.sp
+            )
+        }
+    }
+}
+
+private fun formatRelativeTime(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = (now - timestamp).coerceAtLeast(0L)
+    val minute = 60_000L
+    val hour = 60 * minute
+    val day = 24 * hour
+
+    return when {
+        diff < minute -> "Vừa xong"
+        diff < hour -> "${diff / minute} phút trước"
+        diff < day -> "${diff / hour} giờ trước"
+        else -> "${diff / day} ngày trước"
     }
 }
 
