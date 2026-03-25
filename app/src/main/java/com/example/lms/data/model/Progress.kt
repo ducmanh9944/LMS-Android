@@ -32,5 +32,7 @@ data class QuizProgress(
     @set:PropertyName("isPassed")
     var isPassed: Boolean = false,
     val lastAttemptAt: Long = 0L,
-    val lastAnswers: List<Int> = emptyList()
+    val lastAnswers: List<Int> = emptyList(),
+    val lastCorrectCount: Int = 0,
+    val lastWrongCount: Int = 0
 )

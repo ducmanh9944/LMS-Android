@@ -15,8 +15,11 @@ object Routes {
     const val COURSE_DETAIL = "course_detail"
     const val PROFILE = "profile"
     const val LESSON_PLAYER = "lesson_player"
+    const val QUIZ_ATTEMPT = "quiz_attempt"
+    const val QUIZ_RESULT = "quiz_result"
+    const val QUIZ_REVIEW = "quiz_review"
 
-    // Instructor Routes
+    // Instrucor Routes
     const val INSTRUCTOR_HOME = "instructor_home"
     const val MY_COURSES = "my_courses"
     const val COURSE_FORM = "course_form"

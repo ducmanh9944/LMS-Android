@@ -34,6 +34,9 @@ import com.example.lms.ui.screen.instructor.curriculum.QuizFormScreen
 import com.example.lms.ui.screen.instructor.profile.InstructorProfileScreen
 import com.example.lms.ui.screen.student.CourseDetailScreen
 import com.example.lms.ui.screen.student.LessonPlayerScreen
+import com.example.lms.ui.screen.student.QuizAttemptRoute
+import com.example.lms.ui.screen.student.QuizResultRoute
+import com.example.lms.ui.screen.student.QuizReviewRoute
 import com.example.lms.ui.screen.student.SearchScreen
 import com.example.lms.ui.screen.student.StudentHomeScreen
 import com.example.lms.viewmodel.*
@@ -47,6 +50,7 @@ fun AppNavGraph() {
     val curriculumViewModel: CurriculumViewModel = viewModel()
     val lessonViewModel: LessonViewModel = viewModel()
     val quizViewModel: QuizViewModel = viewModel()
+    val quizAttemptViewModel: QuizAttemptViewModel = viewModel()
 
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val user = authUiState.currentUser
@@ -176,10 +180,89 @@ fun AppNavGraph() {
                     itemId = itemId,
                     userId = authViewModel.getCurrentUserId(),
                     onStartQuiz = { quizId ->
-                        // navController.navigate("${Routes.QUIZ_PLAYER}/$quizId")
+                        navController.navigate("${Routes.QUIZ_ATTEMPT}/$courseId/$quizId")
                     }
                 )
             }
+
+            composable(
+                route = "${Routes.QUIZ_ATTEMPT}/{courseId}/{quizId}",
+                arguments = listOf(
+                    navArgument("courseId") { type = NavType.StringType },
+                    navArgument("quizId") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val courseId = backStackEntry.arguments?.getString("courseId") ?: ""
+                val quizId = backStackEntry.arguments?.getString("quizId") ?: ""
+                QuizAttemptRoute(
+                    courseId = courseId,
+                    quizId = quizId,
+                    userId = authViewModel.getCurrentUserId(),
+                    viewModel = quizAttemptViewModel,
+                    onBackClick = { navController.popBackStack() },
+                    onNavigateToResult = {
+                        navController.navigate("${Routes.QUIZ_RESULT}/$courseId/$quizId")
+                    }
+                )
+            }
+
+            composable(
+                route = "${Routes.QUIZ_RESULT}/{courseId}/{quizId}",
+                arguments = listOf(
+                    navArgument("courseId") { type = NavType.StringType },
+                    navArgument("quizId") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val courseId = backStackEntry.arguments?.getString("courseId") ?: ""
+                val quizId = backStackEntry.arguments?.getString("quizId") ?: ""
+                QuizResultRoute(
+                    viewModel = quizAttemptViewModel,
+                    studentName = user?.fullName ?: "Sinh vien",
+                    onContinueClick = {
+                        val lessonPlayerRoute = "${Routes.LESSON_PLAYER}/$courseId/$quizId"
+                        val didPopToLessonPlayer = navController.popBackStack(lessonPlayerRoute, inclusive = false)
+                        if (!didPopToLessonPlayer) {
+                            navController.navigate(lessonPlayerRoute) {
+                                popUpTo("${Routes.QUIZ_ATTEMPT}/$courseId/$quizId") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                    onReviewAnswerClick = {
+                        navController.navigate("${Routes.QUIZ_REVIEW}/$courseId/$quizId")
+                    },
+                    onRetakeClick = {
+                        quizAttemptViewModel.retakeQuiz()
+                        navController.popBackStack("${Routes.QUIZ_ATTEMPT}/$courseId/$quizId", inclusive = false)
+                    }
+                )
+            }
+
+            composable(
+                route = "${Routes.QUIZ_REVIEW}/{courseId}/{quizId}",
+                arguments = listOf(
+                    navArgument("courseId") { type = NavType.StringType },
+                    navArgument("quizId") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val courseId = backStackEntry.arguments?.getString("courseId") ?: ""
+                val quizId = backStackEntry.arguments?.getString("quizId") ?: ""
+                QuizReviewRoute(
+                    viewModel = quizAttemptViewModel,
+                    onBackClick = { navController.popBackStack() },
+                    onContinueClick = {
+                        val lessonPlayerRoute = "${Routes.LESSON_PLAYER}/$courseId/$quizId"
+                        val didPopToLessonPlayer = navController.popBackStack(lessonPlayerRoute, inclusive = false)
+                        if (!didPopToLessonPlayer) {
+                            navController.navigate(lessonPlayerRoute) {
+                                popUpTo("${Routes.QUIZ_ATTEMPT}/$courseId/$quizId") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                )
+            }
+
 
             composable(Routes.MY_LEARNING) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

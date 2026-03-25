@@ -114,7 +114,7 @@ fun LessonPlayerScreen(
                 item {
                     when (selectedItem) {
                         is CurriculumItem.LessonItem -> VideoPlayer(videoUrl = selectedItem.lesson.videoUrl)
-                        is CurriculumItem.QuizItem -> QuizInfoSection(quiz = selectedItem.quiz)
+                        is CurriculumItem.QuizItem -> QuizInfoSection(quiz = selectedItem.quiz, quizProgress = uiState.quizProgressMap[selectedItem.id])
                         null -> VideoPlaceholder()
                     }
                 }
@@ -128,6 +128,7 @@ fun LessonPlayerScreen(
                         curriculum = uiState.curriculum,
                         selectedItemId = uiState.selectedItemId,
                         lessonProgressMap = uiState.lessonProgressMap,
+                        quizProgressMap = uiState.quizProgressMap,
                         completedLessons = uiState.progress?.completedLessons ?: 0,
                         totalLessons = uiState.course?.lessonCount ?: 0,
                         onItemClick = { viewModel.selectItem(userId, courseId, it) }
@@ -205,7 +206,7 @@ private fun VideoPlaceholder() {
 }
 
 @Composable
-private fun QuizInfoSection(quiz: Quiz) {
+private fun QuizInfoSection(quiz: Quiz, quizProgress: QuizProgress?) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -265,6 +266,68 @@ private fun QuizInfoSection(quiz: Quiz) {
                     color = TextSecondary,
                     lineHeight = 19.sp
                 )
+            }
+        }
+
+        if (quizProgress != null && quizProgress.attempts > 0) {
+            Spacer(Modifier.height(16.dp))
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (quizProgress.isPassed) GreenCheck.copy(0.08f) else Color(0xFFFFEBEE))
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "Đã hoàn thành",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (quizProgress.isPassed) GreenCheck else Color(0xFFC41C3B)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Số lần làm: ${quizProgress.attempts} • Điểm cao nhất: ${quizProgress.bestScore}%",
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (quizProgress.isPassed)
+                                        GreenCheck.copy(0.15f)
+                                    else
+                                        Color(0xFFC41C3B).copy(0.15f)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (quizProgress.isPassed) "Đạt" else "Chưa đạt",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (quizProgress.isPassed) GreenCheck else Color(0xFFC41C3B)
+                            )
+                        }
+
+                        Icon(
+                            if (quizProgress.isPassed) Icons.Default.CheckCircle else Icons.Default.Error,
+                            null,
+                            tint = if (quizProgress.isPassed) GreenCheck else Color(0xFFC41C3B),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -438,6 +501,7 @@ private fun CurriculumListSection(
     curriculum: List<CurriculumItem>,
     selectedItemId: String,
     lessonProgressMap: Map<String, LessonProgress>,
+    quizProgressMap: Map<String, QuizProgress>,
     completedLessons: Int,
     totalLessons: Int,
     onItemClick: (String) -> Unit
@@ -486,7 +550,8 @@ private fun CurriculumListSection(
                     is CurriculumItem.QuizItem -> {
                         QuizCurriculumRow(
                             quiz = item.quiz,
-                            isSelected = isSelected
+                            isSelected = isSelected,
+                            isCompleted = (quizProgressMap[item.id]?.attempts ?: 0) > 0
                         ) { onItemClick(item.id) }
                     }
                 }
@@ -624,6 +689,7 @@ private fun LessonCurriculumRow(
 private fun QuizCurriculumRow(
     quiz: Quiz,
     isSelected: Boolean,
+    isCompleted: Boolean = false,
     onClick: () -> Unit
 ) {
     val backgroundColor = when {
@@ -645,15 +711,25 @@ private fun QuizCurriculumRow(
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(
-                    if (isSelected) Indigo.copy(0.15f)
-                    else SurfaceGray
+                    when {
+                        isCompleted -> GreenCheck.copy(0.15f)
+                        isSelected -> Indigo.copy(0.15f)
+                        else -> SurfaceGray
+                    }
                 ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Outlined.Quiz,
+                imageVector = when {
+                    isCompleted -> Icons.Default.CheckCircle
+                    else -> Icons.Outlined.Quiz
+                },
                 contentDescription = null,
-                tint = if (isSelected) Indigo else TextSecondary,
+                tint = when {
+                    isCompleted -> GreenCheck
+                    isSelected -> Indigo
+                    else -> TextSecondary
+                },
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -672,6 +748,26 @@ private fun QuizCurriculumRow(
             overflow = TextOverflow.Ellipsis,
             lineHeight = 18.sp
         )
+
+        if (isSelected || isCompleted) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        if (isCompleted) GreenCheck.copy(0.1f)
+                        else Indigo.copy(0.1f)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    if (isCompleted) "Đã hoàn thành" else "Chưa làm",
+                    fontSize = 11.sp,
+                    color = if (isCompleted) GreenCheck else Indigo,
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = 14.sp
+                )
+            }
+        }
         Spacer(Modifier.width(8.dp))
     }
 }
