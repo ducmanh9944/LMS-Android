@@ -1,5 +1,7 @@
 package com.example.lms.ui.screen.student
 
+import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,26 +16,25 @@ import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
 import com.example.lms.data.model.*
 import com.example.lms.ui.component.TopBar
@@ -58,7 +59,28 @@ fun LessonPlayerScreen(
     onStartQuiz: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    var isVideoFullscreen by rememberSaveable { mutableStateOf(false) }
+    var isNavigatingBack by remember { mutableStateOf(false) }
+    var lastPlaybackUrl by rememberSaveable { mutableStateOf("") }
+    var playbackPositionMs by rememberSaveable { mutableLongStateOf(0L) }
+    var playbackWhenReady by rememberSaveable { mutableStateOf(false) }
+    val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+    val showScaffoldChrome = !isVideoFullscreen && isPortrait
+
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build()
+    }
+    val videoSectionStateHolder = rememberSaveableStateHolder()
+
+    LessonPlayerFullscreenEffect(isFullscreen = isVideoFullscreen)
+
+    BackHandler(enabled = true) {
+        isNavigatingBack = true
+        navController.popBackStack()
+    }
 
     LaunchedEffect(courseId, itemId) {
         viewModel.loadData(userId, courseId, itemId)
@@ -66,27 +88,56 @@ fun LessonPlayerScreen(
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.reloadProgress(userId, courseId)
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> viewModel.reloadProgress(userId, courseId)
+                Lifecycle.Event.ON_PAUSE -> {
+                    exoPlayer.pause()
+                }
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+
     val selectedItem = uiState.selectedItem
     val isQuizSelected = selectedItem is CurriculumItem.QuizItem
+    val selectedLessonVideoUrl = (selectedItem as? CurriculumItem.LessonItem)?.lesson?.videoUrl.orEmpty()
+
+    LaunchedEffect(selectedLessonVideoUrl) {
+        if (selectedLessonVideoUrl.isNotBlank() && selectedLessonVideoUrl != lastPlaybackUrl) {
+            lastPlaybackUrl = selectedLessonVideoUrl
+            playbackPositionMs = 0L
+            playbackWhenReady = false
+        }
+    }
+
+    fun updatePlaybackSnapshot(positionMs: Long, whenReady: Boolean) {
+        playbackPositionMs = positionMs
+        playbackWhenReady = whenReady
+    }
 
     Scaffold(
         topBar = {
-            TopBar(
-                title = uiState.course?.title ?: "",
-                onBackClick = { navController.popBackStack() }
-            )
+            if (showScaffoldChrome) {
+                TopBar(
+                    title = uiState.course?.title ?: "",
+                    onBackClick = {
+                        isNavigatingBack = true
+                        navController.popBackStack()
+                    }
+                )
+            }
         },
         containerColor = SurfaceGray,
         bottomBar = {
-            if (!uiState.isLoading) {
+            if (!uiState.isLoading && showScaffoldChrome) {
                 LessonPlayerBottomBar(
                     isQuizSelected = isQuizSelected,
                     isCompleted = uiState.currentLessonProgress?.isCompleted ?: false,
@@ -103,9 +154,33 @@ fun LessonPlayerScreen(
             }
         }
     ) { paddingValues ->
-        if (uiState.isLoading) {
+        if (isNavigatingBack) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(SurfaceGray)
+            )
+        } else if (uiState.isLoading) {
             Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Indigo)
+            }
+        } else if ((isVideoFullscreen || !isPortrait) && selectedItem is CurriculumItem.LessonItem) {
+            videoSectionStateHolder.SaveableStateProvider(key = "lesson_video_section") {
+                LessonVideoSection(
+                    videoUrl = selectedItem.lesson.videoUrl,
+                    exoPlayer = exoPlayer,
+                    isFullscreen = isVideoFullscreen,
+                    isPortrait = isPortrait,
+                    playbackPositionMs = playbackPositionMs,
+                    playbackWhenReady = playbackWhenReady,
+                    onPlaybackSnapshot = ::updatePlaybackSnapshot,
+                    onEnterFullscreen = {
+                        isVideoFullscreen = true
+                    },
+                    onExitFullscreen = {
+                        isVideoFullscreen = false
+                    }
+                )
             }
         } else {
             LazyColumn(
@@ -113,7 +188,23 @@ fun LessonPlayerScreen(
             ) {
                 item {
                     when (selectedItem) {
-                        is CurriculumItem.LessonItem -> VideoPlayer(videoUrl = selectedItem.lesson.videoUrl)
+                        is CurriculumItem.LessonItem -> videoSectionStateHolder.SaveableStateProvider(key = "lesson_video_section") {
+                            LessonVideoSection(
+                                videoUrl = selectedItem.lesson.videoUrl,
+                                exoPlayer = exoPlayer,
+                                isFullscreen = isVideoFullscreen,
+                                isPortrait = isPortrait,
+                                playbackPositionMs = playbackPositionMs,
+                                playbackWhenReady = playbackWhenReady,
+                                onPlaybackSnapshot = ::updatePlaybackSnapshot,
+                                onEnterFullscreen = {
+                                    isVideoFullscreen = true
+                                },
+                                onExitFullscreen = {
+                                    isVideoFullscreen = false
+                                }
+                            )
+                        }
                         is CurriculumItem.QuizItem -> QuizInfoSection(quiz = selectedItem.quiz, quizProgress = uiState.quizProgressMap[selectedItem.id])
                         null -> VideoPlaceholder()
                     }
@@ -139,65 +230,6 @@ fun LessonPlayerScreen(
     }
 }
 
-@Composable
-private fun VideoPlayer(videoUrl: String) {
-    val context = LocalContext.current
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-
-    var shouldHide by remember { mutableStateOf(false) }
-
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build()
-    }
-
-    DisposableEffect(videoUrl) {
-        shouldHide = false
-        exoPlayer.setMediaItem(MediaItem.fromUri(videoUrl))
-        exoPlayer.prepare()
-        onDispose {}
-    }
-
-    DisposableEffect(lifecycle) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_PAUSE -> exoPlayer.pause()
-                Lifecycle.Event.ON_STOP -> shouldHide = true
-                else -> {}
-            }
-        }
-
-        lifecycle.addObserver(observer)
-
-        onDispose {
-            shouldHide = true
-            lifecycle.removeObserver(observer)
-            exoPlayer.release()
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f)
-            .background(Color.Black)
-            .graphicsLayer {
-                alpha = if (shouldHide) 0f else 1f
-            }
-    ) {
-        AndroidView(
-            factory = {
-                PlayerView(context).apply {
-                    player = exoPlayer
-                    useController = true
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-            onRelease = {
-                it.player = null
-            }
-        )
-    }
-}
 @Composable
 private fun VideoPlaceholder() {
     Box(Modifier.fillMaxWidth().height(220.dp).background(DarkBg), contentAlignment = Alignment.Center) {
@@ -487,11 +519,7 @@ private fun AttachmentRow(attachment: Attachment) {
             Icons.Default.Download,
             "Tải xuống",
             tint = Indigo,
-            modifier = Modifier
-                .size(20.dp)
-//                .clickable {
-//                    CloudinaryManager.downloadFile(context, attachment.url, attachment.name)
-//                }
+            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -585,8 +613,6 @@ private fun LessonCurriculumRow(
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-
-        // Icon
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -774,9 +800,18 @@ private fun QuizCurriculumRow(
 
 @Composable
 private fun LessonPlayerBottomBar(isQuizSelected: Boolean, isCompleted: Boolean, isToggling: Boolean, onToggleComplete: () -> Unit, onStartQuiz: () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shadowElevation = 0.dp, color = CardWhite) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shadowElevation = 0.dp,
+        color = CardWhite
+    ) {
         HorizontalDivider(thickness = 1.dp, color = Color(0xFFE2E4ED))
-        Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
             if (isQuizSelected) {
                 Button(onStartQuiz, Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(Indigo)) {
                     Text("Bắt đầu", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)

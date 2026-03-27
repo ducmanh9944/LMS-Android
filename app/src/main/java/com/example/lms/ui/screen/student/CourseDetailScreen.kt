@@ -70,12 +70,9 @@ fun CourseDetailScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
-    // Chỉ load toàn bộ khi ID khóa học thay đổi
     LaunchedEffect(courseId, userId) {
         viewModel.loadCourseDetail(courseId, userId)
     }
-
-    // Khi quay lại (Resume), chỉ refresh tiến độ bài học cuối
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -197,7 +194,7 @@ private fun CourseDetailContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(paddingValues),
     ) {
-        item { VideoPlayer(videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4") }
+        item { VideoPlayer(videoUrl = "https://res.cloudinary.com/da0drkqms/video/upload/v1774554757/video_1774554616120_ubzane.mp4") }
         item {
             val categoryName = uiState.categories.find { it.id == course.categoryId }?.name ?: "Chưa phân loại"
             CourseInfoSection(course = course, categoryName = categoryName)
@@ -231,17 +228,21 @@ private fun VideoPlayer(videoUrl: String) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var shouldHide by remember { mutableStateOf(false) }
+    var playbackPositionMs by rememberSaveable(videoUrl) { mutableLongStateOf(0L) }
+    var playbackWhenReady by rememberSaveable(videoUrl) { mutableStateOf(false) }
 
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoUrl))
-            prepare()
-        }
+        ExoPlayer.Builder(context).build()
     }
 
     DisposableEffect(videoUrl) {
+        shouldHide = false
         exoPlayer.setMediaItem(MediaItem.fromUri(videoUrl))
         exoPlayer.prepare()
+        if (playbackPositionMs > 0L) {
+            exoPlayer.seekTo(playbackPositionMs)
+        }
+        exoPlayer.playWhenReady = playbackWhenReady
         onDispose {}
     }
 
@@ -260,6 +261,8 @@ private fun VideoPlayer(videoUrl: String) {
         lifecycle.addObserver(observer)
         onDispose {
             shouldHide = true
+            playbackPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
+            playbackWhenReady = exoPlayer.playWhenReady
             lifecycle.removeObserver(observer)
             exoPlayer.stop()
             exoPlayer.release()
@@ -448,7 +451,7 @@ private fun CurriculumSection(
             modifier = Modifier.fillMaxWidth().border(width = 1.dp, color = Color(0xFFDBDBE6), shape = RoundedCornerShape(16.dp)),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = CardWhite),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column {
                 curriculum.forEachIndexed { index, item ->
@@ -656,9 +659,18 @@ private fun ReviewComposerBottomBar(
 ) {
     val formEnabled = uiState.isEnrolled && !uiState.isSubmittingReview && !uiState.isDeletingReview
 
-    Surface(modifier = Modifier.fillMaxWidth(), color = CardWhite, shadowElevation = 0.dp) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = CardWhite,
+        shadowElevation = 0.dp
+    ) {
         HorizontalDivider(thickness = 1.dp, color = Color(0xFFE5E7EB))
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
             Spacer(modifier = Modifier.height(8.dp))
 
             if (uiState.isEditingReview) {
@@ -975,12 +987,20 @@ private fun CourseDetailBottomBar(
     onEnrollClick: () -> Unit,
     onBuyNowClick: () -> Unit
 ) {
-    Surface(modifier = Modifier.fillMaxWidth(), shadowElevation = 0.dp, color = CardWhite) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shadowElevation = 0.dp,
+        color = CardWhite
+    ) {
         HorizontalDivider(thickness = 1.dp, color = Color(0xFFE2E4ED))
         if (isEnrolled) {
             Button(
                 onClick = onEnrollClick,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp).height(50.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .height(50.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(Indigo)
             ) {
@@ -989,7 +1009,11 @@ private fun CourseDetailBottomBar(
                 Text(text = "Tiếp tục học", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
         } else {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Column(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
                 val isFree = course.price == 0.0
                 Text(text = if (isFree) "Miễn phí" else formatPrice(course.price), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(modifier = Modifier.height(8.dp))

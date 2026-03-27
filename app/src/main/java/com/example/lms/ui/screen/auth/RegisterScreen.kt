@@ -3,6 +3,7 @@
 package com.example.lms.ui.screen.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -41,7 +43,7 @@ fun RegisterScreen(
     val focusManager = LocalFocusManager.current
 
     val primaryColor = Color(0xFF4B5CC4)
-    val lightPurple = Color(0xFFE8EAF6)
+    val surfacePurple = Color(0xFFE2E9FC)
 
     val nameFocus = remember { FocusRequester() }
     val emailFocus = remember { FocusRequester() }
@@ -90,15 +92,34 @@ fun RegisterScreen(
 
             Box(
                 modifier = Modifier
-                    .size(110.dp)
-                    .background(color = lightPurple, shape = RoundedCornerShape(28.dp)),
+                    .size(120.dp)
+                    .background(
+                        color = surfacePurple,
+                        shape = RoundedCornerShape(28.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(6.dp)
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.92f),
+                                    Color.White.copy(alpha = 0.92f)
+                                )
+                            ),
+                            shape = RoundedCornerShape(22.dp)
+                        )
+                )
+
                 Icon(
                     imageVector = Icons.Default.PersonAdd,
                     contentDescription = null,
                     tint = primaryColor,
-                    modifier = Modifier.size(50.dp)
+                    modifier = Modifier.size(52.dp)
                 )
             }
 
@@ -129,6 +150,9 @@ fun RegisterScreen(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 keyboardActions = KeyboardActions(
                     onNext = { emailFocus.requestFocus() }
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color.LightGray
                 )
             )
 
@@ -153,6 +177,9 @@ fun RegisterScreen(
                 ),
                 keyboardActions = KeyboardActions(
                     onNext = { passwordFocus.requestFocus() }
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color.LightGray
                 )
             )
 
@@ -186,6 +213,9 @@ fun RegisterScreen(
                 ),
                 keyboardActions = KeyboardActions(
                     onNext = { confirmFocus.requestFocus() }
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color.LightGray
                 )
             )
 
@@ -221,6 +251,9 @@ fun RegisterScreen(
                     onDone = {
                         focusManager.clearFocus()
                     }
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color.LightGray
                 )
             )
 

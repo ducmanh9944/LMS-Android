@@ -9,8 +9,11 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,15 +37,21 @@ fun StudentBottomBar(
     )
 
     NavigationBar(
+        modifier = Modifier.height(68.dp),
         containerColor = Color.White,
-        tonalElevation = 8.dp
+        tonalElevation = 8.dp,
+        windowInsets = WindowInsets(0, 0, 0, 0)
     ) {
         items.forEach { item ->
-            val isSelected = currentDestination?.hierarchy?.any { it.route == item.route } == true
+            val isSelected = currentDestination?.hierarchy?.any { destination ->
+                val route = destination.route
+                route == item.route || route?.startsWith(item.route) == true
+            } == true
             
             NavigationBarItem(
                 selected = isSelected,
                 onClick = {
+                    if (isSelected) return@NavigationBarItem
                     navController.navigate(item.route) {
                         popUpTo(navController.graph.findStartDestination().id) {
                             saveState = true

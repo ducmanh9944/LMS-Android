@@ -158,7 +158,7 @@ fun QuizResultScreen(
 					onClick = onContinueClick,
 					modifier = Modifier
 						.fillMaxWidth()
-						.height(62.dp),
+						.height(58.dp),
 					shape = RoundedCornerShape(14.dp),
 					colors = ButtonDefaults.buttonColors(containerColor = Indigo)
 				) {
@@ -185,7 +185,7 @@ fun QuizResultScreen(
 				Box(
 					modifier = Modifier
 						.fillMaxWidth()
-						.height(62.dp)
+						.height(58.dp)
 						.border(1.5.dp, Indigo.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
 						.background(CardWhite, RoundedCornerShape(14.dp))
 						.clickable(onClick = onReviewAnswerClick),

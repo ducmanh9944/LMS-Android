@@ -64,6 +64,7 @@ fun InstructorProfileScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .statusBarsPadding()
                     .padding(paddingValues)
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally

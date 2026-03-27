@@ -3,7 +3,6 @@ package com.example.lms.ui.screen.student
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -221,15 +220,14 @@ private fun MyLearningCourseCard(
 	onClick: () -> Unit
 ) {
 	Card(
-		modifier = Modifier
-			.fillMaxWidth()
-			.clickable(onClick = onClick),
+		onClick = onClick,
+		modifier = Modifier.fillMaxWidth(),
 		shape = RoundedCornerShape(14.dp),
 		colors = CardDefaults.cardColors(containerColor = CardWhite),
 		elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
 	) {
-		Column(modifier = Modifier.padding(14.dp)) {
-			Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+		Column(modifier = Modifier.padding(12.dp)) {
+			Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
 				Column(
 					modifier = Modifier.weight(1f),
 					verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -264,15 +262,15 @@ private fun MyLearningCourseCard(
 						model = item.course.thumbnailUrl,
 						contentDescription = null,
 						modifier = Modifier
-							.size(120.dp)
-							.clip(RoundedCornerShape(12.dp)),
+							.size(96.dp)
+							.clip(RoundedCornerShape(10.dp)),
 						contentScale = ContentScale.Crop
 					)
 				} else {
 					Box(
 						modifier = Modifier
-							.size(120.dp)
-							.clip(RoundedCornerShape(12.dp))
+							.size(96.dp)
+							.clip(RoundedCornerShape(10.dp))
 							.background(Color(0xFFE8ECF6)),
 						contentAlignment = Alignment.Center
 					) {
@@ -281,16 +279,16 @@ private fun MyLearningCourseCard(
 							contentDescription = null,
 							tint = Indigo.copy(alpha = 0.5f),
 							modifier = Modifier
-								.size(42.dp)
+								.size(34.dp)
 								.clip(CircleShape)
 								.background(Indigo.copy(alpha = 0.14f))
-								.padding(8.dp)
+								.padding(6.dp)
 						)
 					}
 				}
 			}
 
-			Spacer(modifier = Modifier.height(12.dp))
+			Spacer(modifier = Modifier.height(8.dp))
 
 			Row(
 				modifier = Modifier.fillMaxWidth(),
@@ -299,19 +297,19 @@ private fun MyLearningCourseCard(
 			) {
 				Text(
 					text = "Tiến trình",
-					fontSize = 15.sp,
+					fontSize = 14.sp,
 					fontWeight = FontWeight.Medium,
 					color = TextPrimary
 				)
 				Text(
 					text = "${item.progressPercent}%",
-					fontSize = 15.sp,
+					fontSize = 14.sp,
 					fontWeight = FontWeight.SemiBold,
 					color = Indigo
 				)
 			}
 
-			Spacer(modifier = Modifier.height(6.dp))
+			Spacer(modifier = Modifier.height(4.dp))
 
 			val animatedProgress by animateFloatAsState(
 				targetValue = item.progressPercent / 100f,
@@ -322,14 +320,14 @@ private fun MyLearningCourseCard(
 			Box(
 				modifier = Modifier
 					.fillMaxWidth()
-					.height(10.dp)
+					.height(7.dp)
 					.clip(RoundedCornerShape(999.dp))
 					.background(Color(0xFFD7DBE6))
 			) {
 				Box(
 					modifier = Modifier
 						.fillMaxWidth(animatedProgress.coerceIn(0f, 1f))
-						.height(10.dp)
+						.height(7.dp)
 						.clip(RoundedCornerShape(999.dp))
 						.background(Indigo)
 				)

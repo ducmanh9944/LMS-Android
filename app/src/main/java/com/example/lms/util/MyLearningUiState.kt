@@ -9,6 +9,7 @@ enum class MyLearningTab {
 
 data class MyLearningUiState(
     val isLoading: Boolean = false,
+    val hasLoadedOnce: Boolean = false,
     val selectedTab: MyLearningTab = MyLearningTab.IN_PROGRESS,
     val inProgressCourses: List<MyLearningItem> = emptyList(),
     val completedCourses: List<MyLearningItem> = emptyList()

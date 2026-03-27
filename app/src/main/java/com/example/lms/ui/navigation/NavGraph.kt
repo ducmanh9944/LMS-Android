@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -20,12 +23,11 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.lms.data.model.UserRole
-import com.example.lms.ui.component.InstructorBottomBar
-import com.example.lms.ui.component.StudentBottomBar
 import com.example.lms.ui.screen.auth.CheckEmailScreen
 import com.example.lms.ui.screen.auth.ForgotPasswordScreen
 import com.example.lms.ui.screen.auth.LoginScreen
 import com.example.lms.ui.screen.auth.RegisterScreen
+import com.example.lms.ui.screen.auth.SplashScreen
 import com.example.lms.ui.screen.instructor.InstructorHomeScreen
 import com.example.lms.ui.screen.instructor.course.CourseFormScreen
 import com.example.lms.ui.screen.instructor.course.MyCoursesScreen
@@ -41,6 +43,7 @@ import com.example.lms.ui.screen.student.QuizResultRoute
 import com.example.lms.ui.screen.student.QuizReviewRoute
 import com.example.lms.ui.screen.student.SearchScreen
 import com.example.lms.ui.screen.student.StudentHomeRoute
+import com.example.lms.ui.screen.student.StudentProfileScreen
 import com.example.lms.viewmodel.*
 
 @Composable
@@ -61,38 +64,27 @@ fun AppNavGraph() {
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    
-    val instructorMainRoutes = listOf(Routes.HOME, Routes.MY_COURSES, "stats", Routes.PROFILE)
-    val studentMainRoutes = listOf(Routes.HOME, Routes.MY_LEARNING, Routes.NOTIFICATIONS, Routes.PROFILE)
-    
-    val showBottomNav = if (user?.role == UserRole.INSTRUCTOR) {
-        currentDestination?.route in instructorMainRoutes
-    } else {
-        currentDestination?.route in studentMainRoutes
-    }
 
-    Scaffold(
-        bottomBar = {
-            if (showBottomNav && user != null) {
-                if (user.role == UserRole.INSTRUCTOR) {
-                    InstructorBottomBar(
-                        navController = navController,
-                        currentDestination = currentDestination
-                    )
-                } else {
-                    StudentBottomBar(
-                        navController = navController,
-                        currentDestination = currentDestination
-                    )
-                }
+    NavHost(
+        navController = navController,
+        startDestination = Routes.SPLASH
+    ) {
+            composable(Routes.SPLASH) {
+                var hasNavigated by rememberSaveable { mutableStateOf(false) }
+                SplashScreen(
+                    onProgressComplete = {
+                        if (hasNavigated) return@SplashScreen
+                        hasNavigated = true
+
+                        val target = if (authViewModel.isUserLoggedIn()) Routes.HOME else Routes.LOGIN
+                        navController.navigate(target) {
+                            popUpTo(Routes.SPLASH) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = if (authViewModel.isUserLoggedIn()) Routes.HOME else Routes.LOGIN,
-            modifier = Modifier.padding(innerPadding)
-        ) {
+
             // Auth Routes
             composable(Routes.LOGIN) { LoginScreen(navController, authViewModel) }
             composable(Routes.REGISTER) { RegisterScreen(navController) }
@@ -115,52 +107,80 @@ fun AppNavGraph() {
                     }
                 } else {
                     if (user.role == UserRole.INSTRUCTOR) {
-                        InstructorHomeScreen(navController, authViewModel)
-                    } else {
-                        StudentHomeRoute(
-                            authViewModel = authViewModel,
-                            courseViewModel = courseViewModel,
-                            myLearningViewModel = myLearningViewModel,
-                            onSearchClick = { navController.navigate(Routes.SEARCH) },
-                            onCartClick = { navController.navigate(Routes.CART) },
-                            onSeeAllClick = {
-                                navController.navigate(Routes.MY_LEARNING) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            onContinueClick = { item ->
-                                val lastLessonId = item.lastLessonId
-                                if (lastLessonId.isNotBlank()) {
-                                    navController.navigate("${Routes.LESSON_PLAYER}/${item.course.id}/$lastLessonId")
-                                } else {
-                                    navController.navigate("${Routes.COURSE_DETAIL}/${item.course.id}")
-                                }
-                            },
-                            onMyCourseClick = { item ->
-                                navController.navigate("${Routes.COURSE_DETAIL}/${item.course.id}")
-                            },
-                            onSuggestedCourseClick = { course ->
-                                navController.navigate("${Routes.COURSE_DETAIL}/${course.id}")
+                        InstructorMainScaffold(navController, currentDestination) { innerPadding ->
+                            Box(modifier = Modifier.padding(innerPadding)) {
+                                InstructorHomeScreen(navController, authViewModel)
                             }
-                        )
+                        }
+                    } else {
+                        StudentMainScaffold(navController, currentDestination) { innerPadding ->
+                            Box(modifier = Modifier.padding(innerPadding)) {
+                                StudentHomeRoute(
+                                    authViewModel = authViewModel,
+                                    courseViewModel = courseViewModel,
+                                    myLearningViewModel = myLearningViewModel,
+                                    onSearchClick = { navController.navigate(Routes.SEARCH) },
+                                    onCartClick = { navController.navigate(Routes.CART) },
+                                    onSeeAllClick = {
+                                        navController.navigate(Routes.MY_LEARNING) {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
+                                    onContinueClick = { item ->
+                                        val lastLessonId = item.lastLessonId
+                                        if (lastLessonId.isNotBlank()) {
+                                            navController.navigate("${Routes.LESSON_PLAYER}/${item.course.id}/$lastLessonId")
+                                        } else {
+                                            navController.navigate("${Routes.COURSE_DETAIL}/${item.course.id}")
+                                        }
+                                    },
+                                    onMyCourseClick = { item ->
+                                        navController.navigate("${Routes.COURSE_DETAIL}/${item.course.id}")
+                                    },
+                                    onSuggestedCourseClick = { course ->
+                                        navController.navigate("${Routes.COURSE_DETAIL}/${course.id}")
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
 
             composable(Routes.PROFILE) {
-                InstructorProfileScreen(
-                    authViewModel = authViewModel,
-                    onLogoutClick = {
-                        authViewModel.logout()
-                        navController.navigate(Routes.LOGIN) {
-                            popUpTo(0) { inclusive = true }
+                if (user?.role == UserRole.INSTRUCTOR) {
+                    InstructorMainScaffold(navController, currentDestination) { innerPadding ->
+                        Box(modifier = Modifier.padding(innerPadding)) {
+                            InstructorProfileScreen(
+                                authViewModel = authViewModel,
+                                onLogoutClick = {
+                                    authViewModel.logout()
+                                    navController.navigate(Routes.LOGIN) {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                }
+                            )
                         }
                     }
-                )
+                } else {
+                    StudentMainScaffold(navController, currentDestination) { innerPadding ->
+                        Box(modifier = Modifier.padding(innerPadding)) {
+                            StudentProfileScreen(
+                                authViewModel = authViewModel,
+                                onLogoutClick = {
+                                    authViewModel.logout()
+                                    navController.navigate(Routes.LOGIN) {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
             // Student Flow
@@ -293,22 +313,33 @@ fun AppNavGraph() {
 
 
             composable(Routes.MY_LEARNING) {
-                MyLearningRoute(
-                    userId = authViewModel.getCurrentUserId(),
-                    viewModel = myLearningViewModel,
-                    onCourseClick = { courseId ->
-                        navController.navigate("${Routes.COURSE_DETAIL}/$courseId")
-                    },
-                    onExploreCoursesClick = {
-                        navController.navigate(Routes.SEARCH) {
-                            launchSingleTop = true
-                        }
+                StudentMainScaffold(navController, currentDestination) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        MyLearningRoute(
+                            userId = authViewModel.getCurrentUserId(),
+                            viewModel = myLearningViewModel,
+                            onCourseClick = { courseId ->
+                                navController.navigate("${Routes.COURSE_DETAIL}/$courseId")
+                            },
+                            onExploreCoursesClick = {
+                                navController.navigate(Routes.SEARCH) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
                     }
-                )
+                }
             }
             composable(Routes.NOTIFICATIONS) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Màn hình thông báo")
+                StudentMainScaffold(navController, currentDestination) { innerPadding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Màn hình thông báo")
+                    }
                 }
             }
             composable(Routes.CART) {
@@ -319,23 +350,27 @@ fun AppNavGraph() {
 
             // Instructor Flow
             composable(Routes.MY_COURSES) {
-                MyCoursesScreen(
-                    instructorId = authViewModel.getCurrentUserId(),
-                    viewModel = courseViewModel,
-                    onNavigateToAddCourse = {
-                        courseViewModel.onCourseSelected(null)
-                        navController.navigate(Routes.COURSE_FORM)
-                    },
-                    onNavigateToEditCourse = { course ->
-                        courseViewModel.onCourseSelected(course)
-                        navController.navigate(Routes.COURSE_FORM)
-                    },
-                    onManageContent = { course ->
-                        courseViewModel.onCourseSelected(course)
-                        curriculumViewModel.setCourseId(course.id)
-                        navController.navigate(Routes.CURRICULUM)
+                InstructorMainScaffold(navController, currentDestination) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        MyCoursesScreen(
+                            instructorId = authViewModel.getCurrentUserId(),
+                            viewModel = courseViewModel,
+                            onNavigateToAddCourse = {
+                                courseViewModel.onCourseSelected(null)
+                                navController.navigate(Routes.COURSE_FORM)
+                            },
+                            onNavigateToEditCourse = { course ->
+                                courseViewModel.onCourseSelected(course)
+                                navController.navigate(Routes.COURSE_FORM)
+                            },
+                            onManageContent = { course ->
+                                courseViewModel.onCourseSelected(course)
+                                curriculumViewModel.setCourseId(course.id)
+                                navController.navigate(Routes.CURRICULUM)
+                            }
+                        )
                     }
-                )
+                }
             }
 
             composable(Routes.COURSE_FORM) {
@@ -391,5 +426,6 @@ fun AppNavGraph() {
                 )
             }
         }
-    }
 }
+
+

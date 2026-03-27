@@ -134,7 +134,10 @@ fun ForgotPasswordScreen(
                 },
                 placeholder = { Text("Nhập email của bạn") },
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color.LightGray
+                )
             )
 
             Spacer(modifier = Modifier.height(32.dp))

@@ -1,5 +1,6 @@
 package com.example.lms.ui.screen.student
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,6 +10,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
@@ -17,21 +24,26 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import com.example.lms.data.model.Course
 import com.example.lms.data.model.MyLearningItem
@@ -87,6 +99,8 @@ fun StudentHomeRoute(
         userName = user?.fullName ?: "Học viên",
         avatarUrl = user?.avatarUrl ?: "",
         isSuggestedLoading = courseUiState.isLoading,
+        isMyLearningLoading = myLearningUiState.isLoading,
+        hasMyLearningLoaded = myLearningUiState.hasLoadedOnce,
         suggestedCourses = courseUiState.suggestedCourses,
         continueCourse = continueCourse,
         myCourses = myCourses,
@@ -104,6 +118,8 @@ fun StudentHomeScreen(
     userName: String,
     avatarUrl: String,
     isSuggestedLoading: Boolean,
+    isMyLearningLoading: Boolean,
+    hasMyLearningLoaded: Boolean,
     suggestedCourses: List<Course>,
     continueCourse: MyLearningItem?,
     myCourses: List<MyLearningItem>,
@@ -114,6 +130,7 @@ fun StudentHomeScreen(
     onMyCourseClick: (MyLearningItem) -> Unit,
     onSuggestedCourseClick: (Course) -> Unit
 ) {
+    HomeStatusBar(color = CardWhite, darkIcons = true)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(SurfaceGray),
@@ -130,29 +147,37 @@ fun StudentHomeScreen(
         
         item {
             SectionTitle("Tiếp tục học", Modifier.padding(16.dp, 8.dp))
-            if (continueCourse != null) {
-                ContinueLearningCard(
-                    item = continueCourse,
-                    onContinueClick = {
-                        onContinueClick(continueCourse)
-                    },
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            } else {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(CardWhite)
-                ) {
-                    Box(
+            when {
+                continueCourse != null -> {
+                    ContinueLearningCard(
+                        item = continueCourse,
+                        onContinueClick = {
+                            onContinueClick(continueCourse)
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+
+                isMyLearningLoading || !hasMyLearningLoaded -> {
+                    ContinueLearningCardSkeleton(modifier = Modifier.padding(horizontal = 16.dp))
+                }
+
+                else -> {
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(CardWhite)
                     ) {
-                        Text("Bạn chưa có khóa học để tiếp tục", color = TextSecondary, fontSize = 13.sp)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Bạn chưa có khóa học để tiếp tục", color = TextSecondary, fontSize = 13.sp)
+                        }
                     }
                 }
             }
@@ -206,9 +231,133 @@ fun StudentHomeScreen(
 }
 
 @Composable
+private fun HomeStatusBar(color: Color, darkIcons: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(view, color, darkIcons) {
+        val activity = view.context as? Activity
+        val window = activity?.window
+        if (window != null) {
+            val previousColor = window.statusBarColor
+            val previousIcons = WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars
+
+            window.statusBarColor = color.toArgb()
+            WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = darkIcons
+
+            onDispose {
+                window.statusBarColor = previousColor
+                WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = previousIcons
+            }
+        } else {
+            onDispose { }
+        }
+    }
+}
+
+@Composable
+private fun ContinueLearningCardSkeleton(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "continue_learning_skeleton")
+    val shimmerTranslate by transition.animateFloat(
+        initialValue = -300f,
+        targetValue = 900f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "skeleton_translate"
+    )
+    val shimmerBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFFE8ECF6),
+            Color(0xFFF6F8FC),
+            Color(0xFFE8ECF6)
+        ),
+        start = Offset(shimmerTranslate - 280f, 0f),
+        end = Offset(shimmerTranslate, 280f)
+    )
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(CardWhite),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .background(shimmerBrush)
+            )
+
+            Column(Modifier.padding(16.dp)) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.72f)
+                        .height(18.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(shimmerBrush)
+                )
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(shimmerBrush)
+                )
+                Spacer(Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .width(120.dp)
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(shimmerBrush)
+                    )
+                    Box(
+                        Modifier
+                            .width(86.dp)
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(shimmerBrush)
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(shimmerBrush)
+                )
+
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(shimmerBrush)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun StudentHeader(userName: String, avatarUrl: String, onSearchClick: () -> Unit, onCartClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().background(CardWhite).padding(16.dp, 14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .background(CardWhite)
+            .padding(16.dp, 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(Indigo.copy(0.15f)), contentAlignment = Alignment.Center) {
@@ -321,16 +470,11 @@ private fun SuggestedCourseCard(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 80.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-
                 Column(
-                    modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
-
                 ) {
                     Text(
                         text = course.title,
@@ -346,12 +490,9 @@ private fun SuggestedCourseCard(
                         fontSize = 12.sp,
                         color = TextSecondary,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 14.sp
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

@@ -1,5 +1,7 @@
 package com.example.lms.ui.component
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
@@ -11,6 +13,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -42,8 +45,10 @@ fun InstructorBottomBar(
     )
 
     NavigationBar(
+        modifier = Modifier.height(68.dp),
         containerColor = Color.White,
-        tonalElevation = 8.dp
+        tonalElevation = 8.dp,
+        windowInsets = WindowInsets(0, 0, 0, 0)
     ) {
         items.forEach { item ->
             val isSelected = currentDestination?.hierarchy?.any { it.route == item.route } == true

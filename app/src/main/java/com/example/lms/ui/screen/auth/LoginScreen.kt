@@ -4,6 +4,7 @@ package com.example.lms.ui.screen.auth
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -18,7 +19,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -59,7 +62,7 @@ fun LoginScreen(
     val focusManager = LocalFocusManager.current
 
     val primaryColor = Color(0xFF4B5CC4)
-    val lightPurple = Color(0xFFE8EAF6)
+    val surfacePurple = Color(0xFFE2E9FC)
 
     val webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID
 
@@ -154,15 +157,34 @@ fun LoginScreen(
 
             Box(
                 modifier = Modifier
-                    .size(110.dp)
-                    .background(color = lightPurple, shape = RoundedCornerShape(28.dp)),
+                    .size(120.dp)
+                    .background(
+                        color = surfacePurple,
+                        shape = RoundedCornerShape(28.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(6.dp)
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.92f),
+                                    Color.White.copy(alpha = 0.92f)
+                                )
+                            ),
+                            shape = RoundedCornerShape(22.dp)
+                        )
+                )
+
                 Icon(
                     imageVector = Icons.Default.School,
                     contentDescription = null,
                     tint = primaryColor,
-                    modifier = Modifier.size(50.dp)
+                    modifier = Modifier.size(52.dp)
                 )
             }
 
@@ -191,6 +213,9 @@ fun LoginScreen(
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Next
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color.LightGray
                 )
             )
 
@@ -222,6 +247,9 @@ fun LoginScreen(
                 ),
                 keyboardActions = KeyboardActions(
                     onDone = { focusManager.clearFocus() }
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color.LightGray
                 )
             )
 

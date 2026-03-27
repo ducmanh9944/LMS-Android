@@ -64,7 +64,9 @@ class LessonPlayerViewModel(
             val lessonProgressMap = lessonProgressList.associateBy { it.lessonId }
             val quizProgressMap = quizProgressList.associateBy { it.quizId }
 
+            val currentSelectedItemId = _uiState.value.selectedItemId
             val resolvedItemId = when {
+                currentSelectedItemId.isNotBlank() && curriculum.any { it.id == currentSelectedItemId } -> currentSelectedItemId
                 curriculum.any { it.id == itemId } -> itemId
                 else -> curriculum.firstOrNull()?.id ?: ""
             }

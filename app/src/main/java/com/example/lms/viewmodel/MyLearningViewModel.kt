@@ -36,6 +36,7 @@ class MyLearningViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            hasLoadedOnce = true,
                             inProgressCourses = result.data.inProgress,
                             completedCourses = result.data.completed
                         )
@@ -43,12 +44,12 @@ class MyLearningViewModel(
                 }
 
                 is ResultState.Error -> {
-                    _uiState.update { it.copy(isLoading = false) }
+                    _uiState.update { it.copy(isLoading = false, hasLoadedOnce = true) }
                     _event.emit(MyLearningEvent.ShowError(result.message))
                 }
 
                 else -> {
-                    _uiState.update { it.copy(isLoading = false) }
+                    _uiState.update { it.copy(isLoading = false, hasLoadedOnce = true) }
                 }
             }
         }

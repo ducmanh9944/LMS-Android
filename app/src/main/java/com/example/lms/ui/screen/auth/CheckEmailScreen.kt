@@ -32,7 +32,7 @@ fun CheckEmailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     
     val primaryColor = Color(0xFF4B5CC4)
-    val lightPurple = Color(0xFFE8EAF6)
+    val lightPurple = Color(0xFFE2E9FC)
 
     var timeLeft by remember { mutableIntStateOf(0) }
     
