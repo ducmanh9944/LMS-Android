@@ -1,5 +1,6 @@
 package com.example.lms.ui.screen.student
 
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
@@ -43,6 +44,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.lms.data.model.*
 import com.example.lms.ui.component.TopBar
+import com.example.lms.ui.navigation.Routes
 import com.example.lms.util.CourseDetailEvent
 import com.example.lms.util.CourseDetailUiState
 import com.example.lms.util.formatPrice
@@ -77,6 +79,7 @@ fun CourseDetailScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.refreshProgressOnly(courseId, userId)
+                viewModel.refreshCartStatus(userId, courseId)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -88,6 +91,15 @@ fun CourseDetailScreen(
             when (event) {
                 is CourseDetailEvent.EnrollSuccess -> {
                     Toast.makeText(context, "Đăng ký khóa học thành công!", Toast.LENGTH_SHORT).show()
+                }
+                is CourseDetailEvent.NavigateToPayment -> {
+                    val encodedIds = Uri.encode(event.selectedCourseIds.joinToString(","))
+                    navController.navigate("${Routes.PAYMENT}?courseIds=$encodedIds&source=direct") {
+                        launchSingleTop = true
+                    }
+                }
+                is CourseDetailEvent.ShowMessage -> {
+                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
                 }
                 is CourseDetailEvent.ShowError -> {
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
@@ -122,6 +134,9 @@ fun CourseDetailScreen(
                             course = uiState.course!!,
                             isEnrolled = uiState.isEnrolled,
                             isEnrolling = uiState.isEnrolling,
+                            isInCart = uiState.isInCart,
+                            isTogglingCart = uiState.isTogglingCart,
+                            isBuyingNow = uiState.isBuyingNow,
                             onEnrollClick = {
                                 val lastLessonId = uiState.progress?.lastLessonId
                                 val firstItemId = uiState.curriculum.firstOrNull()?.id
@@ -134,9 +149,10 @@ fun CourseDetailScreen(
                                 }
                             },
                             onBuyNowClick = {
-                                if (!uiState.isEnrolled) {
-                                    viewModel.enrollCourse(userId, courseId)
-                                }
+                                viewModel.buyNowCourse(userId, courseId)
+                            },
+                            onToggleCartClick = {
+                                viewModel.toggleCourseInCart(userId, courseId)
                             }
                         )
                     }
@@ -984,8 +1000,12 @@ private fun CourseDetailBottomBar(
     course: Course,
     isEnrolled: Boolean,
     isEnrolling: Boolean,
+    isInCart: Boolean,
+    isTogglingCart: Boolean,
+    isBuyingNow: Boolean,
     onEnrollClick: () -> Unit,
-    onBuyNowClick: () -> Unit
+    onBuyNowClick: () -> Unit,
+    onToggleCartClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1024,9 +1044,9 @@ private fun CourseDetailBottomBar(
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(Indigo),
-                        enabled = !isEnrolling
+                        enabled = !isEnrolling && !isBuyingNow
                     ) {
-                        if (isEnrolling) {
+                        if (isEnrolling || isBuyingNow) {
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         } else {
                             Text(text = "Đăng ký học", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -1035,22 +1055,35 @@ private fun CourseDetailBottomBar(
                 } else {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(
-                            onClick = {},
+                            onClick = onToggleCartClick,
                             modifier = Modifier.weight(1f).height(50.dp),
                             shape = RoundedCornerShape(12.dp),
                             border = BorderStroke(1.dp, Indigo),
-                            enabled = !isEnrolling
+                            enabled = !isEnrolling && !isTogglingCart && !isBuyingNow
                         ) {
-                            Text(text = "Thêm vào giỏ", fontSize = 14.sp, color = Indigo, fontWeight = FontWeight.SemiBold)
+                            if (isTogglingCart) {
+                                CircularProgressIndicator(
+                                    color = Indigo,
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = if (isInCart) "Xóa khỏi giỏ hàng" else "Thêm vào giỏ",
+                                    fontSize = 14.sp,
+                                    color = Indigo,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                         Button(
                             onClick = onBuyNowClick,
                             modifier = Modifier.weight(1f).height(50.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(Indigo),
-                            enabled = !isEnrolling
+                            enabled = !isEnrolling && !isTogglingCart && !isBuyingNow
                         ) {
-                            if (isEnrolling) {
+                            if (isBuyingNow) {
                                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                             } else {
                                 Text(text = "Mua ngay", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)

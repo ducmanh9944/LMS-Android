@@ -12,6 +12,11 @@ class CourseRepository {
     private val coursesCollection = firestore.collection("courses")
     private val lessonsCollection = firestore.collection("lessons")
     private val quizzesCollection = firestore.collection("quizzes")
+    private val enrollmentsCollection = firestore.collection("enrollments")
+    private val reviewsCollection = firestore.collection("reviews")
+    private val progressCollection = firestore.collection("progress")
+    private val lessonProgressCollection = firestore.collection("lessonProgress")
+    private val quizProgressCollection = firestore.collection("quizProgress")
 
     suspend fun createCourse(course: Course): ResultState<String> {
         return try {
@@ -63,7 +68,22 @@ class CourseRepository {
 
             val quizzesSnapshot = quizzesCollection.whereEqualTo("courseId", courseId).get().await()
             quizzesSnapshot.documents.forEach { batch.delete(it.reference) }
-//            Sau này xóa cứng các collection khác nữa
+
+            val enrollmentsSnapshot = enrollmentsCollection.whereEqualTo("courseId", courseId).get().await()
+            enrollmentsSnapshot.documents.forEach { batch.delete(it.reference) }
+
+            val reviewsSnapshot = reviewsCollection.whereEqualTo("courseId", courseId).get().await()
+            reviewsSnapshot.documents.forEach { batch.delete(it.reference) }
+
+            val progressSnapshot = progressCollection.whereEqualTo("courseId", courseId).get().await()
+            progressSnapshot.documents.forEach { batch.delete(it.reference) }
+
+            val lessonProgressSnapshot = lessonProgressCollection.whereEqualTo("courseId", courseId).get().await()
+            lessonProgressSnapshot.documents.forEach { batch.delete(it.reference) }
+
+            val quizProgressSnapshot = quizProgressCollection.whereEqualTo("courseId", courseId).get().await()
+            quizProgressSnapshot.documents.forEach { batch.delete(it.reference) }
+
             batch.commit().await()
             ResultState.Success(Unit)
         } catch (e: Exception) {

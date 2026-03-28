@@ -3,6 +3,7 @@ package com.example.lms.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.lms.data.model.Review
+import com.example.lms.data.repository.CartRepository
 import com.example.lms.data.repository.CategoryRepository
 import com.example.lms.data.repository.CourseRepository
 import com.example.lms.data.repository.CurriculumRepository
@@ -24,6 +25,7 @@ import kotlinx.coroutines.launch
 
 class CourseDetailViewModel(
     private val courseRepository: CourseRepository = CourseRepository(),
+    private val cartRepository: CartRepository = CartRepository(),
     private val enrollmentRepository: EnrollmentRepository = EnrollmentRepository(),
     private val curriculumRepository: CurriculumRepository = CurriculumRepository(),
     private val categoryRepository: CategoryRepository = CategoryRepository(),
@@ -41,6 +43,7 @@ class CourseDetailViewModel(
     fun loadCourseDetail(courseId: String, userId: String) {
         if (_uiState.value.course?.id == courseId) {
             refreshProgressOnly(courseId, userId)
+            refreshCartStatus(userId, courseId)
             return
         }
 
@@ -52,6 +55,7 @@ class CourseDetailViewModel(
             val curriculumDeferred = async { curriculumRepository.getCurriculum(courseId) }
             val categoriesDeferred = async { categoryRepository.getCategories() }
             val progressDeferred = async { progressRepository.getProgress(userId, courseId) }
+            val isInCartDeferred = async { cartRepository.isCourseInCart(userId, courseId) }
             val reviewsDeferred = async { reviewRepository.getCourseReviews(courseId) }
             val myReviewDeferred = async { reviewRepository.getMyReview(courseId, userId) }
 
@@ -60,6 +64,7 @@ class CourseDetailViewModel(
             val curriculumResult = curriculumDeferred.await()
             val categoriesResult = categoriesDeferred.await()
             val progressResult = progressDeferred.await()
+            val isInCartResult = isInCartDeferred.await()
             val reviewsResult = reviewsDeferred.await()
             val myReviewResult = myReviewDeferred.await()
 
@@ -81,6 +86,7 @@ class CourseDetailViewModel(
                         categories = (categoriesResult as? ResultState.Success)?.data ?: emptyList(),
                         instructor = (instructorResult as? ResultState.Success)?.data,
                         progress = (progressResult as? ResultState.Success)?.data,
+                        isInCart = (isInCartResult as? ResultState.Success)?.data ?: false,
                         reviews = orderedReviews,
                         myReview = myReview,
                         reviewDraftRating = myReview?.rating ?: 5,
@@ -138,6 +144,84 @@ class CourseDetailViewModel(
             if (result is ResultState.Success) {
                 _uiState.update { it.copy(progress = result.data) }
             }
+        }
+    }
+
+    fun refreshCartStatus(userId: String, courseId: String) {
+        if (userId.isBlank() || courseId.isBlank()) return
+
+        viewModelScope.launch {
+            when (val result = cartRepository.isCourseInCart(userId, courseId)) {
+                is ResultState.Success -> {
+                    _uiState.update { it.copy(isInCart = result.data) }
+                }
+                is ResultState.Error -> {
+                    _event.emit(CourseDetailEvent.ShowError(result.message))
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    fun toggleCourseInCart(userId: String, courseId: String) {
+        if (userId.isBlank() || courseId.isBlank()) return
+        val state = _uiState.value
+        if (state.isTogglingCart || state.isEnrolled) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isTogglingCart = true) }
+
+            val result = if (_uiState.value.isInCart) {
+                cartRepository.removeCourseFromCart(userId, courseId)
+            } else {
+                cartRepository.addCourseToCart(userId, courseId)
+            }
+
+            when (result) {
+                is ResultState.Success -> {
+                    val isNowInCart = !_uiState.value.isInCart
+                    _uiState.update {
+                        it.copy(
+                            isInCart = isNowInCart,
+                            isTogglingCart = false
+                        )
+                    }
+                    val message = if (isNowInCart) {
+                        "Đã thêm khóa học vào giỏ hàng"
+                    } else {
+                        "Đã xóa khóa học khỏi giỏ hàng"
+                    }
+                    _event.emit(CourseDetailEvent.ShowMessage(message))
+                }
+
+                is ResultState.Error -> {
+                    _uiState.update { it.copy(isTogglingCart = false) }
+                    _event.emit(CourseDetailEvent.ShowError(result.message))
+                }
+
+                else -> {
+                    _uiState.update { it.copy(isTogglingCart = false) }
+                }
+            }
+        }
+    }
+
+    fun buyNowCourse(userId: String, courseId: String) {
+        if (userId.isBlank() || courseId.isBlank()) return
+
+        val currentState = _uiState.value
+        if (currentState.isEnrolled || currentState.isBuyingNow || currentState.isTogglingCart) return
+
+        val course = currentState.course ?: return
+        if (course.price == 0.0) {
+            enrollCourse(userId, courseId)
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBuyingNow = true) }
+            _event.emit(CourseDetailEvent.NavigateToPayment(listOf(courseId)))
+            _uiState.update { it.copy(isBuyingNow = false) }
         }
     }
 

@@ -10,6 +10,7 @@ data class AuthUiState(
     val passwordVisible: Boolean = false,
     val confirmPasswordVisible: Boolean = false,
     val isLoading: Boolean = false,
+    val isUpdatingProfile: Boolean = false,
     val errorMessage: String? = null,
     val currentUser: User? = null
 )

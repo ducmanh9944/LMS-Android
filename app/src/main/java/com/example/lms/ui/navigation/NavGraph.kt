@@ -1,5 +1,6 @@
 package com.example.lms.ui.navigation
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -23,6 +24,7 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.lms.data.model.UserRole
+import com.example.lms.util.CheckoutSource
 import com.example.lms.ui.screen.auth.CheckEmailScreen
 import com.example.lms.ui.screen.auth.ForgotPasswordScreen
 import com.example.lms.ui.screen.auth.LoginScreen
@@ -36,13 +38,17 @@ import com.example.lms.ui.screen.instructor.curriculum.LessonFormScreen
 import com.example.lms.ui.screen.instructor.curriculum.QuizFormScreen
 import com.example.lms.ui.screen.instructor.profile.InstructorProfileScreen
 import com.example.lms.ui.screen.student.CourseDetailScreen
+import com.example.lms.ui.screen.student.CartRoute
 import com.example.lms.ui.screen.student.LessonPlayerScreen
 import com.example.lms.ui.screen.student.MyLearningRoute
+import com.example.lms.ui.screen.student.PaymentRoute
+import com.example.lms.ui.screen.student.PaymentSuccessScreen
 import com.example.lms.ui.screen.student.QuizAttemptRoute
 import com.example.lms.ui.screen.student.QuizResultRoute
 import com.example.lms.ui.screen.student.QuizReviewRoute
 import com.example.lms.ui.screen.student.SearchScreen
 import com.example.lms.ui.screen.student.StudentHomeRoute
+import com.example.lms.ui.screen.student.StudentProfileEditScreen
 import com.example.lms.ui.screen.student.StudentProfileScreen
 import com.example.lms.viewmodel.*
 
@@ -57,6 +63,8 @@ fun AppNavGraph() {
     val quizViewModel: QuizViewModel = viewModel()
     val quizAttemptViewModel: QuizAttemptViewModel = viewModel()
     val myLearningViewModel: MyLearningViewModel = viewModel()
+    val cartViewModel: CartViewModel = viewModel()
+    val paymentViewModel: PaymentViewModel = viewModel()
 
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val user = authUiState.currentUser
@@ -171,6 +179,12 @@ fun AppNavGraph() {
                         Box(modifier = Modifier.padding(innerPadding)) {
                             StudentProfileScreen(
                                 authViewModel = authViewModel,
+                                onAccountInfoClick = {
+                                    navController.navigate(Routes.ACCOUNT_INFO)
+                                },
+                                onCartClick = {
+                                    navController.navigate(Routes.CART)
+                                },
                                 onLogoutClick = {
                                     authViewModel.logout()
                                     navController.navigate(Routes.LOGIN) {
@@ -181,6 +195,13 @@ fun AppNavGraph() {
                         }
                     }
                 }
+            }
+
+            composable(Routes.ACCOUNT_INFO) {
+                StudentProfileEditScreen(
+                    authViewModel = authViewModel,
+                    onBackClick = { navController.popBackStack() }
+                )
             }
 
             // Student Flow
@@ -343,9 +364,89 @@ fun AppNavGraph() {
                 }
             }
             composable(Routes.CART) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Gio hang")
+                CartRoute(
+                    userId = authViewModel.getCurrentUserId(),
+                    viewModel = cartViewModel,
+                    onBackClick = { navController.popBackStack() },
+                    onNavigateToPayment = { selectedCourseIds ->
+                        val encodedIds = Uri.encode(selectedCourseIds.joinToString(","))
+                        navController.navigate("${Routes.PAYMENT}?courseIds=$encodedIds&source=cart") {
+                            launchSingleTop = true
+                        }
+                    },
+                    onExploreCoursesClick = {
+                        navController.navigate(Routes.SEARCH) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
+            composable(
+                route = "${Routes.PAYMENT}?courseIds={courseIds}&source={source}",
+                arguments = listOf(
+                    navArgument("courseIds") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                    navArgument("source") {
+                        type = NavType.StringType
+                        defaultValue = "cart"
+                    }
+                )
+            ) { backStackEntry ->
+                val courseIdsArg = backStackEntry.arguments?.getString("courseIds").orEmpty()
+                val selectedCourseIds = Uri.decode(courseIdsArg)
+                    .split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                val sourceArg = backStackEntry.arguments?.getString("source").orEmpty()
+                val checkoutSource = if (sourceArg.equals("direct", ignoreCase = true)) {
+                    CheckoutSource.DIRECT
+                } else {
+                    CheckoutSource.CART
                 }
+
+                PaymentRoute(
+                    userId = authViewModel.getCurrentUserId(),
+                    selectedCourseIds = selectedCourseIds,
+                    checkoutSource = checkoutSource,
+                    viewModel = paymentViewModel,
+                    onBackClick = { navController.popBackStack() },
+                    onCheckoutSuccess = { orderId ->
+                        val encodedOrderId = Uri.encode(orderId)
+                        navController.navigate("${Routes.PAYMENT_SUCCESS}?orderId=$encodedOrderId") {
+                            popUpTo(Routes.PAYMENT) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
+            composable(
+                route = "${Routes.PAYMENT_SUCCESS}?orderId={orderId}",
+                arguments = listOf(
+                    navArgument("orderId") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    }
+                )
+            ) {
+                PaymentSuccessScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onGoToMyLearning = {
+                        navController.navigate(Routes.MY_LEARNING) {
+                            popUpTo(Routes.CART) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onGoToHome = {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.CART) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
 
             // Instructor Flow

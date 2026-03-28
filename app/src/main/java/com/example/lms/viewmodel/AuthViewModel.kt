@@ -1,8 +1,10 @@
 package com.example.lms.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.lms.data.repository.AuthRepository
+import com.example.lms.util.CloudinaryManager
 import com.example.lms.util.AuthUiState
 import com.example.lms.util.ResultState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -219,6 +221,66 @@ class AuthViewModel(
                     _event.emit(AuthEvent.ShowError(result.message))
                 }
                 ResultState.Loading -> { }
+            }
+        }
+    }
+
+    fun saveStudentProfile(
+        fullName: String,
+        currentAvatarUrl: String,
+        selectedAvatarUri: Uri?
+    ) {
+        val trimmedName = fullName.trim()
+        if (trimmedName.isBlank()) {
+            viewModelScope.launch {
+                _event.emit(AuthEvent.ShowError("Họ và tên không được để trống"))
+            }
+            return
+        }
+
+        val uid = getCurrentUserId()
+        if (uid.isBlank()) {
+            viewModelScope.launch {
+                _event.emit(AuthEvent.ShowError("Không tìm thấy người dùng hiện tại"))
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isUpdatingProfile = true)
+            var finalAvatarUrl = currentAvatarUrl
+
+            if (selectedAvatarUri != null) {
+                when (val uploadResult = CloudinaryManager.uploadImage(selectedAvatarUri)) {
+                    is ResultState.Success -> {
+                        finalAvatarUrl = uploadResult.data.first
+                    }
+                    is ResultState.Error -> {
+                        _uiState.value = _uiState.value.copy(isUpdatingProfile = false)
+                        _event.emit(AuthEvent.ShowError(uploadResult.message))
+                        return@launch
+                    }
+                    ResultState.Loading -> Unit
+                }
+            }
+
+            when (val result = repository.updateProfile(uid, trimmedName, finalAvatarUrl)) {
+                is ResultState.Success -> {
+                    val updatedUser = _uiState.value.currentUser?.copy(
+                        fullName = trimmedName,
+                        avatarUrl = finalAvatarUrl.trim().ifBlank { null }
+                    )
+                    _uiState.value = _uiState.value.copy(
+                        isUpdatingProfile = false,
+                        currentUser = updatedUser
+                    )
+                    _event.emit(AuthEvent.ProfileUpdated)
+                }
+                is ResultState.Error -> {
+                    _uiState.value = _uiState.value.copy(isUpdatingProfile = false)
+                    _event.emit(AuthEvent.ShowError(result.message))
+                }
+                ResultState.Loading -> Unit
             }
         }
     }

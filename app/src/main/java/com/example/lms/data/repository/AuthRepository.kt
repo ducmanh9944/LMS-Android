@@ -7,6 +7,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
 class AuthRepository {
@@ -124,6 +125,28 @@ class AuthRepository {
             ResultState.Error(mapFirebaseResetError(e.errorCode))
         } catch (e: Exception) {
             ResultState.Error("Gửi email khôi phục thất bại: ${e.localizedMessage}")
+        }
+    }
+
+    suspend fun updateProfile(
+        uid: String,
+        fullName: String,
+        avatarUrl: String?
+    ): ResultState<Unit> {
+        return try {
+            val updates = mapOf(
+                "fullName" to fullName.trim(),
+                "avatarUrl" to avatarUrl?.trim().orEmpty().ifBlank { null }
+            )
+
+            firestore.collection("users")
+                .document(uid)
+                .set(updates, SetOptions.merge())
+                .await()
+
+            ResultState.Success(Unit)
+        } catch (e: Exception) {
+            ResultState.Error(e.localizedMessage ?: "Không thể cập nhật thông tin tài khoản")
         }
     }
 
