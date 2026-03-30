@@ -2,6 +2,7 @@ package com.example.lms.data.repository
 
 import com.example.lms.data.model.CurriculumItem
 import com.example.lms.data.model.Lesson
+import com.example.lms.data.model.NotificationType
 import com.example.lms.data.model.Quiz
 import com.example.lms.util.ResultState
 import com.google.firebase.firestore.FieldValue
@@ -16,6 +17,7 @@ class CurriculumRepository {
     private val lessonsCollection = firestore.collection("lessons")
     private val quizzesCollection = firestore.collection("quizzes")
     private val coursesCollection = firestore.collection("courses")
+    private val notificationRepository = NotificationRepository()
 
     // ─────────────────────────────────────────
     // LESSON CRUD
@@ -86,6 +88,17 @@ class CurriculumRepository {
                 updatedAt = now
             )
             docRef.set(newQuiz).await()
+
+            runCatching {
+                val template = notificationRepository.quizCreatedTemplate(quiz.title)
+                notificationRepository.addNotificationToCourseEnrollments(
+                    courseId = quiz.courseId,
+                    title = template.title,
+                    body = template.body,
+                    type = NotificationType.QUIZ_AVAILABLE
+                )
+            }
+
             ResultState.Success(docRef.id)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Tạo bài kiểm tra thất bại")

@@ -25,6 +25,8 @@ import com.example.lms.data.model.Course
 import java.text.NumberFormat
 import java.util.*
 
+
+private val Primary = Color(0xFF4B5CC4)
 @Composable
 fun InstructorCourseCard(
     course: Course,
@@ -167,7 +169,7 @@ fun InstructorCourseCard(
                     onClick = onManageContent,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
+                        containerColor = Primary,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(10.dp),
@@ -184,7 +186,7 @@ fun InstructorCourseCard(
                 OutlinedButton(
                     onClick = onEdit,
                     modifier = Modifier.weight(1f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Primary),
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(vertical = 8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(

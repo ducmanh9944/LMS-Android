@@ -2,18 +2,50 @@ package com.example.lms.ui.screen.instructor.profile
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,9 +59,17 @@ import kotlinx.coroutines.delay
 @Composable
 fun InstructorProfileScreen(
     authViewModel: AuthViewModel,
-    onLogoutClick: () -> Unit
+    onLogoutClick: () -> Unit,
+    onAccountInfoClick: () -> Unit = {},
+    onPersonalInfoClick: () -> Unit = {}
 ) {
     val uiState by authViewModel.uiState.collectAsStateWithLifecycle()
+    val actionItems = remember {
+        listOf(
+            InstructorProfileActionItem("Thông tin tài khoản", Icons.Default.Person),
+            InstructorProfileActionItem("Thông tin cá nhân", Icons.Default.Settings)
+        )
+    }
 
     var showLogoutDialog by remember { mutableStateOf(false) }
     var isLoggingOut by remember { mutableStateOf(false) }
@@ -69,9 +109,6 @@ fun InstructorProfileScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Avatar
                 Box(
                     modifier = Modifier
                         .size(120.dp)
@@ -98,7 +135,6 @@ fun InstructorProfileScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Name
                 Text(
                     text = uiState.currentUser?.fullName ?: "Instructor",
                     fontSize = 22.sp,
@@ -106,16 +142,33 @@ fun InstructorProfileScreen(
                     color = Color(0xFF1E293B)
                 )
 
-                // Email
                 Text(
                     text = uiState.currentUser?.email ?: "",
                     fontSize = 14.sp,
                     color = Color(0xFF64748B)
                 )
 
+                Spacer(modifier = Modifier.height(40.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    actionItems.forEachIndexed { index, item ->
+                        val clickAction = when (index) {
+                            0 -> onAccountInfoClick
+                            else -> onPersonalInfoClick
+                        }
+                        InstructorProfileActionRow(
+                            title = item.title,
+                            icon = item.icon,
+                            onClick = clickAction
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Logout button
                 OutlinedButton(
                     onClick = { showLogoutDialog = true },
                     modifier = Modifier
@@ -176,7 +229,6 @@ fun InstructorProfileScreen(
         }
     }
 
-    // Confirmation Dialog
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
@@ -215,5 +267,56 @@ fun InstructorProfileScreen(
             shape = RoundedCornerShape(16.dp),
             containerColor = Color.White
         )
+    }
+}
+
+private data class InstructorProfileActionItem(
+    val title: String,
+    val icon: ImageVector
+)
+
+@Composable
+private fun InstructorProfileActionRow(
+    title: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = Color(0xFF4B5CC4)
+            )
+            Spacer(modifier = Modifier.size(12.dp))
+            Text(
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF1E293B),
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = Color(0xFF94A3B8),
+                modifier = Modifier.size(22.dp)
+            )
+        }
     }
 }

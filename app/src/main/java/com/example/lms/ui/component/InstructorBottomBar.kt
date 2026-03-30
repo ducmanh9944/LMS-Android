@@ -40,7 +40,7 @@ fun InstructorBottomBar(
     val items = listOf(
         BottomNavItem(Routes.HOME, "Trang chủ", Icons.Filled.Home, Icons.Outlined.Home),
         BottomNavItem(Routes.MY_COURSES, "Khóa học", Icons.AutoMirrored.Filled.LibraryBooks, Icons.AutoMirrored.Outlined.LibraryBooks),
-        BottomNavItem("stats", "Thống kê", Icons.Filled.Analytics, Icons.Outlined.Analytics),
+        BottomNavItem(Routes.INSTRUCTOR_STATS, "Thống kê", Icons.Filled.Analytics, Icons.Outlined.Analytics),
         BottomNavItem(Routes.PROFILE, "Cá nhân", Icons.Filled.Person, Icons.Outlined.Person)
     )
 
@@ -56,14 +56,13 @@ fun InstructorBottomBar(
             NavigationBarItem(
                 selected = isSelected,
                 onClick = {
-                    if (item.route != "stats") {
-                        navController.navigate(item.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
+                    if (isSelected) return@NavigationBarItem
+                    navController.navigate(item.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
                         }
+                        launchSingleTop = true
+                        restoreState = true
                     }
                 },
                 icon = {

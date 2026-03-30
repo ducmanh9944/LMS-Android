@@ -27,9 +27,15 @@ android {
 
         val cloudName = properties.getProperty("CLOUDINARY_CLOUD_NAME") ?: ""
         val uploadPreset = properties.getProperty("CLOUDINARY_UPLOAD_PRESET") ?: "ml_default"
+        val chatbotApiKey = properties.getProperty("CHATBOT_API_KEY") ?: ""
+        val chatbotApiUrl = properties.getProperty("CHATBOT_API_URL") ?: "https://api.openai.com/v1/chat/completions"
+        val chatbotModel = properties.getProperty("CHATBOT_MODEL") ?: "gpt-4o-mini"
         
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"$cloudName\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"$uploadPreset\"")
+        buildConfigField("String", "CHATBOT_API_KEY", "\"$chatbotApiKey\"")
+        buildConfigField("String", "CHATBOT_API_URL", "\"$chatbotApiUrl\"")
+        buildConfigField("String", "CHATBOT_MODEL", "\"$chatbotModel\"")
     }
 
     packaging {

@@ -17,6 +17,8 @@ enum class CourseFilterStatus(val displayName: String) {
     DRAFT("Bản nháp")
 }
 
+private val Primary = Color(0xFF4B5CC4)
+
 @Composable
 fun StatusFilterRow(
     selectedStatus: CourseFilterStatus,
@@ -38,7 +40,7 @@ fun StatusFilterRow(
                     )
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedContainerColor = Primary,
                     selectedLabelColor = Color.White,
                     containerColor = Color.White,
                     labelColor = Color.Gray

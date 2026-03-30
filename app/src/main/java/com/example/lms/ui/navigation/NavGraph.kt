@@ -30,17 +30,24 @@ import com.example.lms.ui.screen.auth.ForgotPasswordScreen
 import com.example.lms.ui.screen.auth.LoginScreen
 import com.example.lms.ui.screen.auth.RegisterScreen
 import com.example.lms.ui.screen.auth.SplashScreen
-import com.example.lms.ui.screen.instructor.InstructorHomeScreen
+import com.example.lms.ui.screen.instructor.InstructorHomeRoute
+import com.example.lms.ui.screen.instructor.stats.InstructorStatisticsRoute
+import com.example.lms.ui.screen.instructor.stats.CourseAnalyticsRoute
+import com.example.lms.ui.screen.instructor.stats.CourseAnalyticsSearchRoute
 import com.example.lms.ui.screen.instructor.course.CourseFormScreen
 import com.example.lms.ui.screen.instructor.course.MyCoursesScreen
 import com.example.lms.ui.screen.instructor.curriculum.CurriculumScreen
 import com.example.lms.ui.screen.instructor.curriculum.LessonFormScreen
 import com.example.lms.ui.screen.instructor.curriculum.QuizFormScreen
+import com.example.lms.ui.screen.instructor.profile.InstructorPersonalInfoRoute
 import com.example.lms.ui.screen.instructor.profile.InstructorProfileScreen
 import com.example.lms.ui.screen.student.CourseDetailScreen
+import com.example.lms.ui.screen.student.ChatbotRoute
+import com.example.lms.ui.screen.student.InstructorPublicProfileRoute
 import com.example.lms.ui.screen.student.CartRoute
 import com.example.lms.ui.screen.student.LessonPlayerScreen
 import com.example.lms.ui.screen.student.MyLearningRoute
+import com.example.lms.ui.screen.student.NotificationRoute
 import com.example.lms.ui.screen.student.PaymentRoute
 import com.example.lms.ui.screen.student.PaymentSuccessScreen
 import com.example.lms.ui.screen.student.QuizAttemptRoute
@@ -50,6 +57,7 @@ import com.example.lms.ui.screen.student.SearchScreen
 import com.example.lms.ui.screen.student.StudentHomeRoute
 import com.example.lms.ui.screen.student.StudentProfileEditScreen
 import com.example.lms.ui.screen.student.StudentProfileScreen
+import com.example.lms.ui.screen.student.StudentSettingsScreen
 import com.example.lms.viewmodel.*
 
 @Composable
@@ -65,6 +73,13 @@ fun AppNavGraph() {
     val myLearningViewModel: MyLearningViewModel = viewModel()
     val cartViewModel: CartViewModel = viewModel()
     val paymentViewModel: PaymentViewModel = viewModel()
+    val notificationViewModel: NotificationViewModel = viewModel()
+    val chatbotViewModel: ChatbotViewModel = viewModel()
+    val instructorPublicProfileViewModel: InstructorPublicProfileViewModel = viewModel()
+    val instructorHomeAnalyticsViewModel: InstructorAnalyticsViewModel = viewModel(key = "instructor_home_analytics_vm")
+    val instructorStatsAnalyticsViewModel: InstructorAnalyticsViewModel = viewModel(key = "instructor_stats_analytics_vm")
+    val courseAnalyticsViewModel: CourseAnalyticsViewModel = viewModel()
+    val instructorPersonalInfoViewModel: InstructorPersonalInfoViewModel = viewModel()
 
     val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val user = authUiState.currentUser
@@ -117,7 +132,39 @@ fun AppNavGraph() {
                     if (user.role == UserRole.INSTRUCTOR) {
                         InstructorMainScaffold(navController, currentDestination) { innerPadding ->
                             Box(modifier = Modifier.padding(innerPadding)) {
-                                InstructorHomeScreen(navController, authViewModel)
+                                InstructorHomeRoute(
+                                    instructorId = authViewModel.getCurrentUserId(),
+                                    instructorName = user.fullName,
+                                    viewModel = instructorHomeAnalyticsViewModel,
+                                    onMyCoursesClick = {
+                                        navController.navigate(Routes.MY_COURSES) {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
+                                    onCreateCourseClick = {
+                                        courseViewModel.onCourseSelected(null)
+                                        navController.navigate(Routes.COURSE_FORM)
+                                    },
+                                    onViewStatisticsClick = {
+                                        navController.navigate(Routes.INSTRUCTOR_STATS) {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
+                                    onTopCourseClick = { courseId ->
+                                        val encodedCourseId = Uri.encode(courseId)
+                                        navController.navigate("${Routes.COURSE_ANALYTICS}/$encodedCourseId") {
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                )
                             }
                         }
                     } else {
@@ -165,6 +212,12 @@ fun AppNavGraph() {
                         Box(modifier = Modifier.padding(innerPadding)) {
                             InstructorProfileScreen(
                                 authViewModel = authViewModel,
+                                onAccountInfoClick = {
+                                    navController.navigate(Routes.ACCOUNT_INFO)
+                                },
+                                onPersonalInfoClick = {
+                                    navController.navigate(Routes.INSTRUCTOR_PERSONAL_INFO)
+                                },
                                 onLogoutClick = {
                                     authViewModel.logout()
                                     navController.navigate(Routes.LOGIN) {
@@ -185,6 +238,12 @@ fun AppNavGraph() {
                                 onCartClick = {
                                     navController.navigate(Routes.CART)
                                 },
+                                onChatbotClick = {
+                                    navController.navigate(Routes.CHATBOT)
+                                },
+                                onSettingsClick = {
+                                    navController.navigate(Routes.STUDENT_SETTINGS)
+                                },
                                 onLogoutClick = {
                                     authViewModel.logout()
                                     navController.navigate(Routes.LOGIN) {
@@ -200,6 +259,29 @@ fun AppNavGraph() {
             composable(Routes.ACCOUNT_INFO) {
                 StudentProfileEditScreen(
                     authViewModel = authViewModel,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.STUDENT_SETTINGS) {
+                StudentSettingsScreen(
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.CHATBOT) {
+                ChatbotRoute(
+                    userId = authViewModel.getCurrentUserId(),
+                    userAvatarUrl = authUiState.currentUser?.avatarUrl,
+                    viewModel = chatbotViewModel,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.INSTRUCTOR_PERSONAL_INFO) {
+                InstructorPersonalInfoRoute(
+                    instructorId = authViewModel.getCurrentUserId(),
+                    viewModel = instructorPersonalInfoViewModel,
                     onBackClick = { navController.popBackStack() }
                 )
             }
@@ -229,6 +311,33 @@ fun AppNavGraph() {
                     onLessonClick = { itemId ->
                         navController.navigate("${Routes.LESSON_PLAYER}/$courseId/$itemId")
                     }
+                )
+            }
+
+            composable(
+                route = "${Routes.INSTRUCTOR_PUBLIC_PROFILE}/{instructorId}?instructorName={instructorName}&instructorAvatarUrl={instructorAvatarUrl}",
+                arguments = listOf(
+                    navArgument("instructorId") { type = NavType.StringType },
+                    navArgument("instructorName") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                    navArgument("instructorAvatarUrl") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    }
+                )
+            ) { backStackEntry ->
+                val instructorId = Uri.decode(backStackEntry.arguments?.getString("instructorId").orEmpty())
+                val instructorName = Uri.decode(backStackEntry.arguments?.getString("instructorName").orEmpty())
+                val instructorAvatarUrl = Uri.decode(backStackEntry.arguments?.getString("instructorAvatarUrl").orEmpty())
+
+                InstructorPublicProfileRoute(
+                    instructorId = instructorId,
+                    instructorName = instructorName,
+                    instructorAvatarUrl = instructorAvatarUrl,
+                    viewModel = instructorPublicProfileViewModel,
+                    onBackClick = { navController.popBackStack() }
                 )
             }
 
@@ -353,13 +462,11 @@ fun AppNavGraph() {
             }
             composable(Routes.NOTIFICATIONS) {
                 StudentMainScaffold(navController, currentDestination) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Màn hình thông báo")
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        NotificationRoute(
+                            userId = authViewModel.getCurrentUserId(),
+                            viewModel = notificationViewModel
+                        )
                     }
                 }
             }
@@ -472,6 +579,50 @@ fun AppNavGraph() {
                         )
                     }
                 }
+            }
+
+            composable(Routes.INSTRUCTOR_STATS) {
+                InstructorMainScaffold(navController, currentDestination) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        InstructorStatisticsRoute(
+                            instructorId = authViewModel.getCurrentUserId(),
+                            viewModel = instructorStatsAnalyticsViewModel,
+                            onOpenCourseAnalyticsSearch = {
+                                navController.navigate(Routes.COURSE_ANALYTICS_SEARCH) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            composable(Routes.COURSE_ANALYTICS_SEARCH) {
+                CourseAnalyticsSearchRoute(
+                    instructorId = authViewModel.getCurrentUserId(),
+                    courseViewModel = courseViewModel,
+                    onBackClick = { navController.popBackStack() },
+                    onCourseClick = { courseId ->
+                        val encodedCourseId = Uri.encode(courseId)
+                        navController.navigate("${Routes.COURSE_ANALYTICS}/$encodedCourseId") {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
+            composable(
+                route = "${Routes.COURSE_ANALYTICS}/{courseId}",
+                arguments = listOf(navArgument("courseId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val encodedCourseId = backStackEntry.arguments?.getString("courseId").orEmpty()
+                val courseId = Uri.decode(encodedCourseId)
+
+                CourseAnalyticsRoute(
+                    courseId = courseId,
+                    viewModel = courseAnalyticsViewModel,
+                    onBackClick = { navController.popBackStack() }
+                )
             }
 
             composable(Routes.COURSE_FORM) {

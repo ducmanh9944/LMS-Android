@@ -159,7 +159,7 @@ fun SplashScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "MixiLearn",
+                text = "UniLearn",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF111827),

@@ -7,6 +7,8 @@ import com.example.lms.data.model.Course
 import com.example.lms.data.model.Enrollment
 import com.example.lms.data.model.Order
 import com.example.lms.data.model.OrderItem
+import com.example.lms.data.model.NotificationItem
+import com.example.lms.data.model.NotificationType
 import com.example.lms.data.model.PaymentMethod
 import com.example.lms.data.model.PaymentStatus
 import com.example.lms.util.ResultState
@@ -22,6 +24,7 @@ class PaymentRepository {
     private val orderItemsCollection = firestore.collection("orderItems")
     private val enrollmentsCollection = firestore.collection("enrollments")
     private val coursesCollection = firestore.collection("courses")
+    private val notificationRepository = NotificationRepository()
 
     private data class ResolvedCheckoutItem(
         val courseId: String,
@@ -242,6 +245,22 @@ class PaymentRepository {
 
                 order
             }.await()
+            
+            runCatching {
+                val template = notificationRepository.purchaseSuccessTemplate(
+                    itemCount = createdOrder.itemCount
+                )
+                notificationRepository.addNotification(
+                    NotificationItem(
+                        userId = userId,
+                        title = template.title,
+                        body = template.body,
+                        type = NotificationType.PURCHASE_SUCCESS,
+                        isRead = false,
+                        createdAt = createdOrder.createdAt
+                    )
+                )
+            }
 
             ResultState.Success(createdOrder)
         } catch (e: IllegalStateException) {

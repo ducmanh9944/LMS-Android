@@ -174,6 +174,16 @@ fun CourseDetailScreen(
                     courseId = courseId,
                     userId = userId,
                     viewModel = viewModel,
+                    onViewInstructorProfileClick = { instructorId, instructorName, instructorAvatarUrl ->
+                        val encodedInstructorId = Uri.encode(instructorId)
+                        val encodedInstructorName = Uri.encode(instructorName)
+                        val encodedInstructorAvatarUrl = Uri.encode(instructorAvatarUrl)
+                        navController.navigate(
+                            "${Routes.INSTRUCTOR_PUBLIC_PROFILE}/$encodedInstructorId?instructorName=$encodedInstructorName&instructorAvatarUrl=$encodedInstructorAvatarUrl"
+                        ) {
+                            launchSingleTop = true
+                        }
+                    },
                     onLessonClick = onLessonClick
                 )
             }
@@ -205,6 +215,7 @@ private fun CourseDetailContent(
     courseId: String,
     userId: String,
     viewModel: CourseDetailViewModel,
+    onViewInstructorProfileClick: (String, String, String) -> Unit,
     onLessonClick: (String) -> Unit
 ) {
     LazyColumn(
@@ -217,8 +228,16 @@ private fun CourseDetailContent(
         }
         item {
             InstructorSection(
+                instructorId = course.instructorId,
                 instructorName = course.instructorName,
                 avatarUrl = uiState.instructor?.avatarUrl,
+                onViewProfileClick = { instructorId ->
+                    onViewInstructorProfileClick(
+                        instructorId,
+                        course.instructorName,
+                        uiState.instructor?.avatarUrl.orEmpty()
+                    )
+                },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
@@ -344,7 +363,13 @@ private fun StatItem(icon: ImageVector, text: String, iconColor: Color = TextSec
 }
 
 @Composable
-private fun InstructorSection(instructorName: String, avatarUrl: String?, modifier: Modifier = Modifier) {
+private fun InstructorSection(
+    instructorId: String,
+    instructorName: String,
+    avatarUrl: String?,
+    onViewProfileClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(modifier = modifier.fillMaxWidth().border( width = 1.dp, color = Color(0xFFE2E4ED), shape = RoundedCornerShape(12.dp)), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(CardWhite), elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)) {
         Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(Indigo.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
@@ -360,9 +385,25 @@ private fun InstructorSection(instructorName: String, avatarUrl: String?, modifi
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy((-4).dp)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy((-4).dp)
+            ) {
                 Text(text = instructorName, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
                 Text(text = "Giảng viên", fontSize = 12.sp, color = TextSecondary)
+            }
+
+            TextButton(
+                onClick = { onViewProfileClick(instructorId) },
+                enabled = instructorId.isNotBlank(),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "Xem hồ sơ",
+                    color = Indigo,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }

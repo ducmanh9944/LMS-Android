@@ -1,12 +1,18 @@
 package com.example.lms.data.repository
 
 import com.example.lms.data.model.Course
+import com.example.lms.data.model.NotificationType
 import com.example.lms.util.ResultState
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 
 class CourseRepository {
+
+    companion object {
+        private val notificationThrottleLock = Any()
+        private val lastCourseUpdateNotifyAtByCourseId = mutableMapOf<String, Long>()
+    }
 
     private val firestore = FirebaseFirestore.getInstance()
     private val coursesCollection = firestore.collection("courses")
@@ -17,6 +23,8 @@ class CourseRepository {
     private val progressCollection = firestore.collection("progress")
     private val lessonProgressCollection = firestore.collection("lessonProgress")
     private val quizProgressCollection = firestore.collection("quizProgress")
+    private val notificationRepository = NotificationRepository()
+    private val courseUpdateNotificationCooldownMs = 30 * 60 * 1000L
 
     suspend fun createCourse(course: Course): ResultState<String> {
         return try {
@@ -35,6 +43,7 @@ class CourseRepository {
 
     suspend fun updateCourse(course: Course): ResultState<Unit> {
         return try {
+            val now = System.currentTimeMillis()
             coursesCollection
                 .document(course.id)
                 .update(
@@ -47,13 +56,41 @@ class CourseRepository {
                         "level" to course.level,
                         "duration" to course.duration,
                         "isPublished" to course.isPublished,
-                        "updatedAt" to System.currentTimeMillis()
+                        "updatedAt" to now
                     )
                 )
                 .await()
+
+            val shouldNotify = shouldNotifyCourseUpdate(course.id, now)
+
+            if (shouldNotify) {
+                runCatching {
+                    val template = notificationRepository.courseUpdatedTemplate(course.title)
+                    notificationRepository.addNotificationToCourseEnrollments(
+                        courseId = course.id,
+                        title = template.title,
+                        body = template.body,
+                        type = NotificationType.COURSE_UPDATED
+                    )
+                }
+            }
+
             ResultState.Success(Unit)
         } catch (e: Exception) {
             ResultState.Error(e.message ?: "Cập nhật khóa học thất bại")
+        }
+    }
+
+    private fun shouldNotifyCourseUpdate(courseId: String, now: Long): Boolean {
+        if (courseId.isBlank()) return false
+
+        synchronized(notificationThrottleLock) {
+            val lastNotifiedAt = lastCourseUpdateNotifyAtByCourseId[courseId] ?: 0L
+            val canNotify = now - lastNotifiedAt >= courseUpdateNotificationCooldownMs
+            if (canNotify) {
+                lastCourseUpdateNotifyAtByCourseId[courseId] = now
+            }
+            return canNotify
         }
     }
 
