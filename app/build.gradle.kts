@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.lms"
+    namespace = "com.example.lms2"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.lms"
+        applicationId = "com.example.lms2"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -23,19 +23,28 @@ android {
         }
 
         val webClientId = properties.getProperty("google.web.client.id") ?: ""
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
-
         val cloudName = properties.getProperty("CLOUDINARY_CLOUD_NAME") ?: ""
         val uploadPreset = properties.getProperty("CLOUDINARY_UPLOAD_PRESET") ?: "ml_default"
         val chatbotApiKey = properties.getProperty("CHATBOT_API_KEY") ?: ""
         val chatbotApiUrl = properties.getProperty("CHATBOT_API_URL") ?: "https://api.openai.com/v1/chat/completions"
         val chatbotModel = properties.getProperty("CHATBOT_MODEL") ?: "gpt-4o-mini"
-        
+        val geminiApiKey = properties.getProperty("GEMINI_API_KEY") ?: ""
+        val openrouterApiKey = properties.getProperty("OPENROUTER_API_KEY") ?: ""
+        val momoFunctionBaseUrl = properties.getProperty("MOMO_FUNCTION_BASE_URL") ?: ""
+        val recommendationApiUrl = properties.getProperty("RECOMMENDATION_API_URL") ?: ""
+        val adminUid = properties.getProperty("ADMIN_UID") ?: ""
+
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"$cloudName\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"$uploadPreset\"")
         buildConfigField("String", "CHATBOT_API_KEY", "\"$chatbotApiKey\"")
         buildConfigField("String", "CHATBOT_API_URL", "\"$chatbotApiUrl\"")
         buildConfigField("String", "CHATBOT_MODEL", "\"$chatbotModel\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "OPENROUTER_API_KEY", "\"$openrouterApiKey\"")
+        buildConfigField("String", "MOMO_FUNCTION_BASE_URL", "\"$momoFunctionBaseUrl\"")
+        buildConfigField("String", "RECOMMENDATION_API_URL", "\"$recommendationApiUrl\"")
+        buildConfigField("String", "ADMIN_UID", "\"$adminUid\"")
     }
 
     packaging {
@@ -47,6 +56,7 @@ android {
                 "META-INF/NOTICE",
                 "META-INF/NOTICE.md",
                 "META-INF/NOTICE.txt",
+                "META-INF/DEPENDENCIES",
                 "META-INF/*.kotlin_module"
             )
         }
@@ -64,6 +74,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -72,6 +83,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation(libs.androidx.databinding.compiler)
 
     // Core
@@ -107,7 +119,7 @@ dependencies {
 
     // Cloudinary
     implementation("com.cloudinary:cloudinary-android:2.3.1")
-    
+
     // Modern Google Sign In (Credential Manager)
     implementation("androidx.credentials:credentials:1.2.2")
     implementation("androidx.credentials:credentials-play-services-auth:1.2.2")
@@ -118,6 +130,16 @@ dependencies {
 
     // Reorderable LazyColumn
     implementation("org.burnoutcrew.composereorderable:reorderable:0.9.6")
+    
+    // Google AI SDK (Gemini)
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
+
+    // Retrofit for OpenRouter API
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-moshi:2.11.0")
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Video Player
     implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0")

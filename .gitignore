@@ -19,3 +19,7 @@ google-services.json
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Firebase Service Accounts
+scripts/seed/*.json
+!scripts/seed/seed_data.json
